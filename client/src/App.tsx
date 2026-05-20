@@ -59,9 +59,14 @@ function DarkModeToggle() {
 
 function Brand() {
   return (
-    <div className="flex items-center gap-2">
-      <span className="inline-block size-2 rounded-full bg-foreground" />
-      <span className="font-semibold tracking-tight text-sm">FreeLLMAPI</span>
+    <div className="flex items-center gap-2 min-w-0">
+      <span className="inline-block size-2 rounded-full bg-foreground shrink-0" />
+      <div className="min-w-0">
+        <span className="font-semibold tracking-tight text-sm">FreeLLMAPI</span>
+        <span className="hidden sm:block text-[11px] text-muted-foreground leading-tight">
+          OpenAI · Claude Code · Codex
+        </span>
+      </div>
     </div>
   )
 }

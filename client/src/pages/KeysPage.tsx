@@ -6,6 +6,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { PageHeader } from '@/components/page-header'
+import { IntegrationsGuide } from '@/components/integrations-guide'
+import { getOpenAiBaseUrl } from '@/lib/proxy-url'
 import type { ApiKey, Platform } from '../../../shared/types'
 
 const PLATFORMS: { value: Platform; label: string }[] = [
@@ -74,9 +76,7 @@ function UnifiedKeySection() {
 
   const apiKey = data?.apiKey ?? ''
   const masked = apiKey ? apiKey.slice(0, 13) + '•'.repeat(32) : '…'
-  const baseUrl = import.meta.env.DEV
-    ? `http://${window.location.hostname}:${__SERVER_PORT__}/v1`
-    : `${window.location.origin}/v1`
+  const baseUrl = getOpenAiBaseUrl()
 
   function copy() {
     navigator.clipboard.writeText(apiKey)
@@ -90,7 +90,9 @@ function UnifiedKeySection() {
         <div>
           <h2 className="text-sm font-medium">Your unified API key</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Use this as your OpenAI <code className="font-mono">api_key</code>; it authenticates requests to this proxy.
+            One key for OpenAI SDK, Claude Code, and OpenAI Codex. Use it as{' '}
+            <code className="font-mono">api_key</code>, <code className="font-mono">ANTHROPIC_API_KEY</code>, or Codex{' '}
+            <code className="font-mono">CUSTOM_API_KEY</code>.
           </p>
         </div>
         <Button
@@ -118,8 +120,10 @@ function UnifiedKeySection() {
       <div className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-xs">
         <span className="text-muted-foreground">Base URL</span>
         <code className="font-mono">{baseUrl}</code>
-        <span className="text-muted-foreground">Endpoint</span>
-        <code className="font-mono">/v1/chat/completions</code>
+        <span className="text-muted-foreground">Endpoints</span>
+        <span className="font-mono text-[11px] leading-relaxed">
+          /v1/chat/completions · /v1/messages (Claude Code) · /v1/responses (Codex)
+        </span>
       </div>
     </section>
   )
@@ -203,7 +207,7 @@ export default function KeysPage() {
     <div>
       <PageHeader
         title="Keys"
-        description="Provider credentials and the unified API key your apps connect with."
+        description="Provider keys, unified API key, and setup for OpenAI SDK, Claude Code, and OpenAI Codex."
         actions={
           keys.length > 0 && (
             <Button variant="outline" size="sm" onClick={() => checkAll.mutate()} disabled={checkAll.isPending}>
@@ -215,6 +219,8 @@ export default function KeysPage() {
 
       <div className="space-y-8">
         <UnifiedKeySection />
+
+        <IntegrationsGuide />
 
         <section>
           <h2 className="text-sm font-medium mb-3">Add a provider key</h2>

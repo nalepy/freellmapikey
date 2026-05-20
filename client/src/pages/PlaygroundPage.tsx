@@ -140,7 +140,7 @@ export default function PlaygroundPage() {
     <div className="flex flex-col h-[calc(100vh-8rem)]">
       <PageHeader
         title="Playground"
-        description="Send a chat completion through the router and see which provider serves it."
+        description="Test the OpenAI-compatible router. Claude Code and Codex use the same keys — see Keys for setup."
         actions={
           <>
             <Select value={selectedModel} onValueChange={(v) => setSelectedModel(v ?? 'auto')}>
