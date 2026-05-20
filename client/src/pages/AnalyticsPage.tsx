@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, Legend,
 } from 'recharts'
 import { apiFetch } from '@/lib/api'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { PageHeader } from '@/components/page-header'
 
@@ -43,7 +44,24 @@ const gridStyle = 'var(--border)'
 const primaryFill = 'var(--foreground)'
 
 export default function AnalyticsPage() {
+  const queryClient = useQueryClient()
   const [range, setRange] = useState<TimeRange>('7d')
+
+  const resetMutation = useMutation({
+    mutationFn: () => apiFetch<{ deleted: number }>('/api/analytics/reset', { method: 'POST' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['analytics'] })
+      queryClient.invalidateQueries({ queryKey: ['fallback', 'token-usage'] })
+    },
+  })
+
+  function handleResetAnalytics() {
+    const ok = window.confirm(
+      'Delete all request history? Analytics charts and the Fallback monthly token bar will reset to zero. API keys and fallback order are not changed.',
+    )
+    if (!ok) return
+    resetMutation.mutate()
+  }
 
   const { data: summary } = useQuery({
     queryKey: ['analytics', 'summary', range],
@@ -75,29 +93,56 @@ export default function AnalyticsPage() {
     queryFn: () => apiFetch<{ byCategory: any[]; byPlatform: any[]; detailed: any[] }>(`/api/analytics/error-distribution?range=${range}`),
   })
 
+  const { data: fallbackSettings } = useQuery({
+    queryKey: ['fallback'],
+    queryFn: () => apiFetch<{ visionOnlyRouting: boolean }>('/api/fallback'),
+  })
+
   return (
     <div>
       <PageHeader
         title="Analytics"
-        description="Request volume, latency, token usage, and failures."
+        description="Request volume, latency, token usage, and failures. Vision column shows which models can accept images (same list as Fallback)."
         actions={
-          <div className="flex gap-1 rounded-md border p-0.5">
-            {(['24h', '7d', '30d'] as TimeRange[]).map(r => (
-              <Button
-                key={r}
-                variant={range === r ? 'secondary' : 'ghost'}
-                size="xs"
-                onClick={() => setRange(r)}
-              >
-                {r}
-              </Button>
-            ))}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex gap-1 rounded-md border p-0.5">
+              {(['24h', '7d', '30d'] as TimeRange[]).map(r => (
+                <Button
+                  key={r}
+                  variant={range === r ? 'secondary' : 'ghost'}
+                  size="xs"
+                  onClick={() => setRange(r)}
+                >
+                  {r}
+                </Button>
+              ))}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleResetAnalytics}
+              disabled={resetMutation.isPending}
+            >
+              {resetMutation.isPending ? 'Resetting…' : 'Reset analytics'}
+            </Button>
           </div>
         }
       />
 
       <div className="space-y-6">
+        {fallbackSettings?.visionOnlyRouting && (
+          <p className="text-sm text-muted-foreground rounded-lg border bg-card px-4 py-3">
+            <span className="font-medium text-foreground">Vision-only routing is on.</span>{' '}
+            Only models marked Vision below are used for all API traffic (including Codex). Text-only models in this table are historical requests from before the setting was enabled.
+          </p>
+        )}
+
         {/* Summary stats */}
+        <p className="text-xs text-muted-foreground">
+          Token counts for the selected time range ({range}). Streaming requests use estimated input size unless the provider reports usage.
+          Failed fallback hops no longer add duplicate input. The Fallback budget bar uses calendar-month usage and may differ.
+        </p>
+
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           <Stat label="Requests" value={summary?.totalRequests ?? 0} />
           <Stat label="Success rate" value={`${summary?.successRate ?? 0}%`} />
@@ -170,6 +215,7 @@ export default function AnalyticsPage() {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="pl-4">Model</TableHead>
+                        <TableHead>Vision</TableHead>
                         <TableHead>Provider</TableHead>
                         <TableHead className="text-right">Requests</TableHead>
                         <TableHead className="text-right">Success</TableHead>
@@ -182,6 +228,15 @@ export default function AnalyticsPage() {
                       {byModel.map((m: any, i: number) => (
                         <TableRow key={i}>
                           <TableCell className="pl-4 text-sm font-medium">{m.displayName}</TableCell>
+                          <TableCell>
+                            {m.supportsVision ? (
+                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-normal">
+                                Yes
+                              </Badge>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
                           <TableCell className="text-xs text-muted-foreground">{m.platform}</TableCell>
                           <TableCell className="text-right tabular-nums">{m.requests}</TableCell>
                           <TableCell className="text-right tabular-nums">{m.successRate}%</TableCell>

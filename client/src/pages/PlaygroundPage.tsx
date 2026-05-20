@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { Eye } from 'lucide-react'
 import { apiFetch } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -14,6 +15,7 @@ interface FallbackEntry {
   displayName: string
   sizeLabel: string
   keyCount: number
+  supportsVision: boolean
 }
 
 interface ChatMessage {
@@ -40,10 +42,11 @@ export default function PlaygroundPage() {
     queryFn: () => apiFetch('/api/settings/api-key'),
   })
 
-  const { data: fallbackEntries = [] } = useQuery<FallbackEntry[]>({
+  const { data: fallbackChain } = useQuery<{ entries: FallbackEntry[] }>({
     queryKey: ['fallback'],
     queryFn: () => apiFetch('/api/fallback'),
   })
+  const fallbackEntries = fallbackChain?.entries ?? []
 
   const availableModels = fallbackEntries.filter(e => e.keyCount > 0 && e.enabled)
 
@@ -132,9 +135,13 @@ export default function PlaygroundPage() {
     inputRef.current?.focus()
   }
 
+  const selectedEntry = selectedModel === 'auto'
+    ? undefined
+    : availableModels.find(m => m.modelId === selectedModel)
+
   const activeModelLabel = selectedModel === 'auto'
     ? 'Auto (fallback chain)'
-    : availableModels.find(m => m.modelId === selectedModel)?.displayName ?? selectedModel
+    : selectedEntry?.displayName ?? selectedModel
 
   return (
     <div className="flex flex-col h-[calc(100vh-8rem)]">
@@ -144,16 +151,27 @@ export default function PlaygroundPage() {
         actions={
           <>
             <Select value={selectedModel} onValueChange={(v) => setSelectedModel(v ?? 'auto')}>
-              <SelectTrigger className="w-[260px]">
-                <SelectValue />
+              <SelectTrigger className="w-[280px]">
+                <span className="flex items-center gap-1.5 min-w-0">
+                  {selectedEntry?.supportsVision && (
+                    <Eye className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                  )}
+                  <SelectValue />
+                </span>
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="max-h-[min(24rem,70vh)]">
                 <SelectItem value="auto">Auto (fallback chain)</SelectItem>
                 {availableModels.map(m => (
                   <SelectItem key={m.modelDbId} value={m.modelId}>
-                    <span className="flex items-center gap-2">
-                      <span>{m.displayName}</span>
-                      <span className="text-xs text-muted-foreground">{m.platform}</span>
+                    <span className="flex items-center gap-2 min-w-0">
+                      {m.supportsVision && (
+                        <Eye
+                          className="size-3.5 shrink-0 text-muted-foreground"
+                          aria-label="Supports vision"
+                        />
+                      )}
+                      <span className="truncate">{m.displayName}</span>
+                      <span className="text-xs text-muted-foreground shrink-0">{m.platform}</span>
                     </span>
                   </SelectItem>
                 ))}

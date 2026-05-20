@@ -8,6 +8,29 @@ import {
 import type { ChatCompletionResponse } from '@freellmapi/shared/types.js';
 
 describe('responses-compat', () => {
+  it('preserves input_image as OpenAI image_url content', () => {
+    const openai = responsesRequestToOpenAI({
+      input: [{
+        role: 'user',
+        content: [
+          { type: 'input_text', text: 'What is in this image?' },
+          {
+            type: 'input_image',
+            image_url: 'data:image/png;base64,iVBORw0KGgo=',
+            detail: 'auto',
+          },
+        ],
+      }],
+    });
+
+    expect(openai.messages).toHaveLength(1);
+    expect(openai.messages[0].role).toBe('user');
+    expect(Array.isArray(openai.messages[0].content)).toBe(true);
+    const parts = openai.messages[0].content as Array<{ type: string }>;
+    expect(parts.some(p => p.type === 'text')).toBe(true);
+    expect(parts.some(p => p.type === 'image_url')).toBe(true);
+  });
+
   it('converts string input and instructions to OpenAI messages', () => {
     const openai = responsesRequestToOpenAI({
       model: 'gpt-5.4',

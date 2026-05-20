@@ -2,10 +2,12 @@ import crypto from 'crypto';
 import type {
   ChatCompletionChunk,
   ChatCompletionResponse,
+  ChatContentPart,
   ChatMessage,
   ChatToolChoice,
   ChatToolDefinition,
 } from '@freellmapi/shared/types.js';
+import { estimateContentTokens } from './message-content.js';
 import type { OpenAICompletionParams } from './anthropic-compat.js';
 
 // ---- OpenAI Responses API (subset for Codex / Responses wire clients) ----
@@ -112,21 +114,62 @@ function newId(prefix: string): string {
   return `${prefix}_${crypto.randomBytes(12).toString('hex')}`;
 }
 
-function flattenContent(content: unknown): string {
+function responsesPartToOpenAI(part: unknown): ChatContentPart | null {
+  if (typeof part !== 'object' || part === null) return null;
+  const p = part as Record<string, unknown>;
+  const type = p.type;
+
+  if (
+    (type === 'input_text' || type === 'output_text' || type === 'text')
+    && typeof p.text === 'string'
+  ) {
+    return { type: 'text', text: p.text };
+  }
+
+  if (type === 'input_image') {
+    let url: string | null = null;
+    if (typeof p.image_url === 'string') {
+      url = p.image_url;
+    } else if (typeof p.image_url === 'object' && p.image_url !== null && typeof (p.image_url as { url?: string }).url === 'string') {
+      url = (p.image_url as { url: string }).url;
+    }
+    if (url) {
+      const detail = p.detail;
+      return {
+        type: 'image_url',
+        image_url: {
+          url,
+          detail: detail === 'low' || detail === 'high' || detail === 'auto' ? detail : 'auto',
+        },
+      };
+    }
+  }
+
+  return null;
+}
+
+function contentToChatContent(content: unknown): string | ChatContentPart[] {
   if (typeof content === 'string') return content;
   if (!Array.isArray(content)) return '';
-  return content
-    .map(part => {
-      if (typeof part !== 'object' || part === null) return '';
-      const p = part as ResponsesContentPart;
-      if (
-        (p.type === 'input_text' || p.type === 'output_text' || p.type === 'text')
-        && typeof p.text === 'string'
-      ) {
-        return p.text;
-      }
-      return '';
-    })
+
+  const parts: ChatContentPart[] = [];
+  for (const part of content) {
+    const mapped = responsesPartToOpenAI(part);
+    if (mapped) parts.push(mapped);
+  }
+
+  if (parts.length === 0) return '';
+  if (parts.length === 1 && parts[0].type === 'text') return parts[0].text;
+  return parts;
+}
+
+/** Text-only flattening for tool outputs and token fallbacks. */
+function flattenContent(content: unknown): string {
+  const converted = contentToChatContent(content);
+  if (typeof converted === 'string') return converted;
+  return converted
+    .filter((p): p is Extract<ChatContentPart, { type: 'text' }> => p.type === 'text')
+    .map(p => p.text)
     .join('');
 }
 
@@ -202,8 +245,8 @@ function parseInputItems(input: string | ResponsesInputItem[] | undefined): Chat
     const openaiRole = role === 'developer' ? 'system' : role;
     if (openaiRole !== 'user' && openaiRole !== 'assistant' && openaiRole !== 'system') continue;
 
-    const content = 'content' in item ? flattenContent(item.content) : '';
-    if (openaiRole === 'assistant' && !content) {
+    const content = 'content' in item ? contentToChatContent(item.content) : '';
+    if (openaiRole === 'assistant' && (content === '' || (Array.isArray(content) && content.length === 0))) {
       messages.push({ role: 'assistant', content: '' });
     } else {
       messages.push({ role: openaiRole, content });
@@ -241,10 +284,7 @@ export function responsesRequestToOpenAI(body: ResponsesCreateRequest): OpenAICo
 
 export function estimateResponsesInputTokens(body: ResponsesCreateRequest): number {
   const openai = responsesRequestToOpenAI(body);
-  return openai.messages.reduce((sum, m) => {
-    if (typeof m.content !== 'string') return sum;
-    return sum + Math.ceil(m.content.length / 4);
-  }, 0);
+  return openai.messages.reduce((sum, m) => sum + estimateContentTokens(m.content), 0);
 }
 
 export function buildResponseSkeleton(

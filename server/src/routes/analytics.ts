@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { getDb } from '../db/index.js';
+import { modelSupportsVision } from '../lib/message-content.js';
 
 export const analyticsRouter = Router();
 
@@ -81,6 +82,7 @@ analyticsRouter.get('/by-model', (req: Request, res: Response) => {
     platform: r.platform,
     modelId: r.model_id,
     displayName: r.display_name ?? r.model_id,
+    supportsVision: modelSupportsVision(r.platform, r.model_id),
     requests: r.requests,
     successRate: Math.round(r.success_rate * 10) / 10,
     avgLatencyMs: Math.round(r.avg_latency_ms),
@@ -235,4 +237,12 @@ analyticsRouter.get('/errors', (req: Request, res: Response) => {
     latencyMs: r.latency_ms,
     createdAt: r.created_at,
   })));
+});
+
+// Clear all logged requests (analytics + monthly token usage on Fallback)
+analyticsRouter.post('/reset', (_req: Request, res: Response) => {
+  const db = getDb();
+  const before = db.prepare('SELECT COUNT(*) as n FROM requests').get() as { n: number };
+  db.prepare('DELETE FROM requests').run();
+  res.json({ deleted: before.n });
 });

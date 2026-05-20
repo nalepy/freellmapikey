@@ -67,6 +67,7 @@ The problem is that stacking them by hand is painful: fourteen different SDKs, f
 - **Anthropic-compatible** — `POST /v1/messages` and `POST /v1/messages/count_tokens` translate to the same router and providers, so [Claude Code](https://code.claude.com/docs/en/llm-gateway) can point at your local proxy via `ANTHROPIC_BASE_URL`.
 - **Streaming and non-streaming** — Server-Sent Events for `stream: true`, JSON response otherwise. Every provider adapter implements both.
 - **Tool calling** — OpenAI-style `tools` / `tool_choice` requests are passed through, and assistant `tool_calls` + `tool` role follow-up messages round-trip across providers.
+- **Vision (Codex & chat)** — Pasted images in Codex (`input_image` on `/v1/responses`) and multimodal user messages on `/v1/chat/completions` are routed to vision-capable models (Gemini, Llama 4, etc.); text-only backends are skipped when images are present.
 - **Automatic fallover** — If the chosen provider returns a 429, 5xx, or times out, the router skips it, puts the key on a short cooldown, and retries on the next model in your fallback chain (up to 20 attempts).
 - **Per-key rate tracking** — RPM, RPD, TPM, and TPD counters per `(platform, model, key)` so the router always picks a key that's under its caps.
 - **Sticky sessions** — Multi-turn conversations keep talking to the same model for 30 minutes to avoid the hallucination spike that comes from mid-conversation model switches.
@@ -84,7 +85,6 @@ The scope is deliberately narrow. If a feature isn't on this list and isn't belo
 - **Embeddings** (`/v1/embeddings`)
 - **Image generation** (`/v1/images/*`)
 - **Audio / speech** (`/v1/audio/*`)
-- **Vision / multimodal inputs** — message content is text-only
 - **Legacy completions** (`/v1/completions`) — only the chat endpoint is implemented
 - **Moderation** (`/v1/moderations`)
 - **`n > 1`** (multiple completions per request)

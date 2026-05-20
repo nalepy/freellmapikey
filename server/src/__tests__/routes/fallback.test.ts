@@ -31,29 +31,51 @@ describe('Fallback API', () => {
   it('GET /api/fallback returns fallback chain', async () => {
     const { status, body } = await request(app, 'GET', '/api/fallback');
     expect(status).toBe(200);
-    expect(Array.isArray(body)).toBe(true);
-    expect(body.length).toBeGreaterThan(0);
-    // Should be sorted by priority
-    for (let i = 1; i < body.length; i++) {
-      expect(body[i].priority).toBeGreaterThanOrEqual(body[i - 1].priority);
+    expect(body.visionOnlyRouting).toBe(false);
+    expect(Array.isArray(body.entries)).toBe(true);
+    expect(body.entries.length).toBeGreaterThan(0);
+    for (let i = 1; i < body.entries.length; i++) {
+      expect(body.entries[i].priority).toBeGreaterThanOrEqual(body.entries[i - 1].priority);
     }
   });
 
   it('GET /api/fallback entries have expected fields', async () => {
     const { body } = await request(app, 'GET', '/api/fallback');
-    const first = body[0];
+    const first = body.entries[0];
     expect(first).toHaveProperty('modelDbId');
     expect(first).toHaveProperty('priority');
     expect(first).toHaveProperty('enabled');
     expect(first).toHaveProperty('platform');
     expect(first).toHaveProperty('displayName');
     expect(first).toHaveProperty('intelligenceRank');
+    expect(first).toHaveProperty('supportsVision');
+    expect(typeof first.supportsVision).toBe('boolean');
+  });
+
+  it('GET /api/fallback marks Gemini models as vision-capable', async () => {
+    const { body } = await request(app, 'GET', '/api/fallback');
+    const gemini = body.entries.find((e: { platform: string; modelId: string }) =>
+      e.platform === 'google' && String(e.modelId).includes('gemini'));
+    expect(gemini).toBeDefined();
+    expect(gemini.supportsVision).toBe(true);
+  });
+
+  it('PUT /api/fallback/vision-only toggles routing mode', async () => {
+    const on = await request(app, 'PUT', '/api/fallback/vision-only', { enabled: true });
+    expect(on.status).toBe(200);
+    expect(on.body.visionOnlyRouting).toBe(true);
+
+    const getOn = await request(app, 'GET', '/api/fallback');
+    expect(getOn.body.visionOnlyRouting).toBe(true);
+
+    const off = await request(app, 'PUT', '/api/fallback/vision-only', { enabled: false });
+    expect(off.body.visionOnlyRouting).toBe(false);
   });
 
   it('PUT /api/fallback updates order', async () => {
-    const { body: original } = await request(app, 'GET', '/api/fallback');
+    const { body: chain } = await request(app, 'GET', '/api/fallback');
+    const original = chain.entries;
 
-    // Reverse the order
     const reversed = original.map((e: any, i: number) => ({
       modelDbId: e.modelDbId,
       priority: original.length - i,
@@ -63,11 +85,9 @@ describe('Fallback API', () => {
     const { status } = await request(app, 'PUT', '/api/fallback', reversed);
     expect(status).toBe(200);
 
-    // Verify order changed
-    const { body: after } = await request(app, 'GET', '/api/fallback');
-    expect(after[0].modelDbId).toBe(original[original.length - 1].modelDbId);
+    const { body: afterChain } = await request(app, 'GET', '/api/fallback');
+    expect(afterChain.entries[0].modelDbId).toBe(original[original.length - 1].modelDbId);
 
-    // Restore original order
     const restore = original.map((e: any, i: number) => ({
       modelDbId: e.modelDbId,
       priority: i + 1,
@@ -81,9 +101,8 @@ describe('Fallback API', () => {
     expect(status).toBe(200);
 
     const { body } = await request(app, 'GET', '/api/fallback');
-    // Should be sorted ascending by intelligence rank
-    for (let i = 1; i < body.length; i++) {
-      expect(body[i].intelligenceRank).toBeGreaterThanOrEqual(body[i - 1].intelligenceRank);
+    for (let i = 1; i < body.entries.length; i++) {
+      expect(body.entries[i].intelligenceRank).toBeGreaterThanOrEqual(body.entries[i - 1].intelligenceRank);
     }
   });
 
@@ -92,9 +111,8 @@ describe('Fallback API', () => {
     expect(status).toBe(200);
 
     const { body } = await request(app, 'GET', '/api/fallback');
-    // Should be sorted ascending by speed rank
-    for (let i = 1; i < body.length; i++) {
-      expect(body[i].speedRank).toBeGreaterThanOrEqual(body[i - 1].speedRank);
+    for (let i = 1; i < body.entries.length; i++) {
+      expect(body.entries[i].speedRank).toBeGreaterThanOrEqual(body.entries[i - 1].speedRank);
     }
   });
 

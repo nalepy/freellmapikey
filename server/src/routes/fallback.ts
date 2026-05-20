@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
-import { getDb } from '../db/index.js';
+import { getDb, getVisionOnlyRouting, setVisionOnlyRouting } from '../db/index.js';
+import { modelSupportsVision } from '../lib/message-content.js';
 import { getAllPenalties } from '../services/router.js';
 
 export const fallbackRouter = Router();
@@ -31,27 +32,45 @@ fallbackRouter.get('/', (_req: Request, res: Response) => {
   const penalties = getAllPenalties();
   const penaltyMap = new Map(penalties.map(p => [p.modelDbId, p]));
 
-  res.json(rows.map(r => {
-    const penalty = penaltyMap.get(r.model_db_id);
-    return {
-      modelDbId: r.model_db_id,
-      priority: r.priority,
-      effectivePriority: r.priority + (penalty?.penalty ?? 0),
-      penalty: penalty?.penalty ?? 0,
-      rateLimitHits: penalty?.count ?? 0,
-      enabled: r.enabled === 1,
-      platform: r.platform,
-      modelId: r.model_id,
-      displayName: r.display_name,
-      intelligenceRank: r.intelligence_rank,
-      speedRank: r.speed_rank,
-      sizeLabel: r.size_label,
-      rpmLimit: r.rpm_limit,
-      rpdLimit: r.rpd_limit,
-      monthlyTokenBudget: r.monthly_token_budget,
-      keyCount: keyCountMap.get(r.platform) ?? 0,
-    };
-  }));
+  res.json({
+    visionOnlyRouting: getVisionOnlyRouting(),
+    entries: rows.map(r => {
+      const penalty = penaltyMap.get(r.model_db_id);
+      return {
+        modelDbId: r.model_db_id,
+        priority: r.priority,
+        effectivePriority: r.priority + (penalty?.penalty ?? 0),
+        penalty: penalty?.penalty ?? 0,
+        rateLimitHits: penalty?.count ?? 0,
+        enabled: r.enabled === 1,
+        platform: r.platform,
+        modelId: r.model_id,
+        displayName: r.display_name,
+        intelligenceRank: r.intelligence_rank,
+        speedRank: r.speed_rank,
+        sizeLabel: r.size_label,
+        rpmLimit: r.rpm_limit,
+        rpdLimit: r.rpd_limit,
+        monthlyTokenBudget: r.monthly_token_budget,
+        keyCount: keyCountMap.get(r.platform) ?? 0,
+        supportsVision: modelSupportsVision(r.platform, r.model_id),
+      };
+    }),
+  });
+});
+
+const visionOnlySchema = z.object({
+  enabled: z.boolean(),
+});
+
+fallbackRouter.put('/vision-only', (req: Request, res: Response) => {
+  const parsed = visionOnlySchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: { message: parsed.error.errors.map(e => e.message).join(', ') } });
+    return;
+  }
+  setVisionOnlyRouting(parsed.data.enabled);
+  res.json({ visionOnlyRouting: parsed.data.enabled });
 });
 
 const updateSchema = z.array(z.object({
@@ -149,22 +168,38 @@ fallbackRouter.get('/token-usage', (_req: Request, res: Response) => {
     .map(m => ({
       displayName: m.display_name,
       platform: m.platform,
+      modelId: m.model_id,
       budget: parseBudget(m.monthly_token_budget),
+      supportsVision: modelSupportsVision(m.platform, m.model_id),
     }));
 
   const totalBudget = modelBudgets.reduce((s, m) => s + m.budget, 0);
 
-  // Tokens used this month
-  const usage = db.prepare(`
-    SELECT
-      COALESCE(SUM(input_tokens + output_tokens), 0) as total_used
+  const usageByModel = db.prepare(`
+    SELECT platform, model_id,
+           COALESCE(SUM(input_tokens + output_tokens), 0) as used
     FROM requests
     WHERE created_at >= datetime('now', 'start of month')
-  `).get() as { total_used: number };
+    GROUP BY platform, model_id
+  `).all() as { platform: string; model_id: string; used: number }[];
+
+  const usedMap = new Map(
+    usageByModel.map(r => [`${r.platform}:${r.model_id}`, r.used]),
+  );
+
+  const modelsWithUsage = modelBudgets.map(m => ({
+    displayName: m.displayName,
+    platform: m.platform,
+    budget: m.budget,
+    used: usedMap.get(`${m.platform}:${m.modelId}`) ?? 0,
+    supportsVision: m.supportsVision,
+  }));
+
+  const totalUsed = modelsWithUsage.reduce((s, m) => s + m.used, 0);
 
   res.json({
     totalBudget,
-    totalUsed: usage.total_used,
-    models: modelBudgets,
+    totalUsed,
+    models: modelsWithUsage,
   });
 });

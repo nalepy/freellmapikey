@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import type {
   ChatCompletionChunk,
   ChatCompletionResponse,
+  ChatContentPart,
   ChatMessage,
   ChatToolCall,
   ChatToolChoice,
@@ -116,13 +117,32 @@ function anthropicAssistantToOpenAI(blocks: AnthropicContentBlock[]): ChatMessag
   };
 }
 
+function anthropicImageToOpenAI(block: AnthropicContentBlock): ChatContentPart | null {
+  if (block.type !== 'image') return null;
+  const src = (block as { source?: { type?: string; media_type?: string; data?: string } }).source;
+  if (src?.type !== 'base64' || !src.media_type || !src.data) return null;
+  return {
+    type: 'image_url',
+    image_url: {
+      url: `data:${src.media_type};base64,${src.data}`,
+      detail: 'auto',
+    },
+  };
+}
+
 function anthropicUserToOpenAI(blocks: AnthropicContentBlock[]): ChatMessage[] {
   const out: ChatMessage[] = [];
   const textParts: string[] = [];
+  const multimodalParts: ChatContentPart[] = [];
 
   for (const block of blocks) {
     if (block.type === 'text' && typeof (block as any).text === 'string') {
-      textParts.push((block as any).text);
+      const text = (block as any).text as string;
+      textParts.push(text);
+      multimodalParts.push({ type: 'text', text });
+    } else if (block.type === 'image') {
+      const imagePart = anthropicImageToOpenAI(block);
+      if (imagePart) multimodalParts.push(imagePart);
     } else if (block.type === 'tool_result') {
       const tr = block as { type: 'tool_result'; tool_use_id: string; content: string | AnthropicContentBlock[] };
       out.push({
@@ -133,7 +153,15 @@ function anthropicUserToOpenAI(blocks: AnthropicContentBlock[]): ChatMessage[] {
     }
   }
 
-  if (textParts.length > 0) {
+  if (multimodalParts.length > 0) {
+    const hasImage = multimodalParts.some(p => p.type === 'image_url');
+    const content: string | ChatContentPart[] = hasImage
+      ? multimodalParts
+      : (multimodalParts.length === 1 && multimodalParts[0].type === 'text'
+        ? multimodalParts[0].text
+        : textParts.join(''));
+    out.unshift({ role: 'user', content });
+  } else if (textParts.length > 0) {
     out.unshift({ role: 'user', content: textParts.join('') });
   }
 

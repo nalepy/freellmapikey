@@ -93,6 +93,41 @@ describe('GoogleProvider', () => {
     expect(capturedBody.contents[0].role).toBe('user');
   });
 
+  it('should send user image_url parts as Gemini inlineData', async () => {
+    let capturedBody: any;
+    vi.spyOn(global, 'fetch').mockImplementation(async (_url, init) => {
+      capturedBody = JSON.parse((init as any).body);
+      return {
+        ok: true,
+        json: () => Promise.resolve({
+          candidates: [{ content: { parts: [{ text: 'A cat' }] }, finishReason: 'STOP' }],
+          usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1, totalTokenCount: 2 },
+        }),
+      } as any;
+    });
+
+    await provider.chatCompletion(
+      'test-key',
+      [{
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Describe this' },
+          {
+            type: 'image_url',
+            image_url: { url: 'data:image/png;base64,abc123', detail: 'auto' },
+          },
+        ],
+      }],
+      'gemini-2.5-flash',
+    );
+
+    const parts = capturedBody.contents[0].parts;
+    expect(parts).toEqual([
+      { text: 'Describe this' },
+      { inlineData: { mimeType: 'image/png', data: 'abc123' } },
+    ]);
+  });
+
   it('should translate OpenAI tools/tool_choice to Gemini tools/toolConfig', async () => {
     let capturedBody: any;
     vi.spyOn(global, 'fetch').mockImplementation(async (_url, init) => {

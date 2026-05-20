@@ -19,6 +19,8 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { apiFetch } from '@/lib/api'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { PageHeader } from '@/components/page-header'
 
@@ -39,6 +41,14 @@ interface FallbackEntry {
   rpdLimit: number | null
   monthlyTokenBudget: string
   keyCount: number
+  supportsVision: boolean
+}
+
+type ModelFilter = 'all' | 'vision'
+
+interface FallbackChainResponse {
+  visionOnlyRouting: boolean
+  entries: FallbackEntry[]
 }
 
 function formatTokens(n: number): string {
@@ -48,10 +58,27 @@ function formatTokens(n: number): string {
   return String(n)
 }
 
+interface TokenUsageModel {
+  displayName: string
+  platform: string
+  budget: number
+  used: number
+  supportsVision: boolean
+}
+
 interface TokenUsageData {
   totalBudget: number
   totalUsed: number
-  models: { displayName: string; platform: string; budget: number }[]
+  models: TokenUsageModel[]
+}
+
+function filterTokenUsageForVision(data: TokenUsageData): TokenUsageData {
+  const models = data.models.filter(m => m.supportsVision)
+  return {
+    models,
+    totalBudget: models.reduce((s, m) => s + m.budget, 0),
+    totalUsed: models.reduce((s, m) => s + m.used, 0),
+  }
 }
 
 const platformColors: Record<string, string> = {
@@ -72,7 +99,7 @@ const platformColors: Record<string, string> = {
   llm7:        '#0ea5e9',
 }
 
-function TokenUsageBar({ data }: { data: TokenUsageData }) {
+function TokenUsageBar({ data, subtitle }: { data: TokenUsageData; subtitle?: string }) {
   const { totalBudget, totalUsed, models } = data
   const remaining = Math.max(0, totalBudget - totalUsed)
   const remainingPct = totalBudget > 0 ? Math.round((remaining / totalBudget) * 100) : 0
@@ -81,19 +108,25 @@ function TokenUsageBar({ data }: { data: TokenUsageData }) {
   // bar sums to `remaining`; the grey tail represents what's been used.
   const modelsWithWidth = models.map(m => ({
     ...m,
-    remainingTokens: totalBudget > 0 ? (m.budget / totalBudget) * remaining : 0,
     widthPct: totalBudget > 0 ? (m.budget / totalBudget) * (remaining / totalBudget) * 100 : 0,
   }))
-  const usedPct = totalBudget > 0 ? (totalUsed / totalBudget) * 100 : 0
+  const usedPct = totalBudget > 0 ? Math.min(100, (totalUsed / totalBudget) * 100) : 0
 
   return (
     <section className="rounded-lg border bg-card p-5">
-      <div className="flex items-baseline justify-between mb-3">
-        <h2 className="text-sm font-medium">Monthly token budget</h2>
-        <span className="text-xs text-muted-foreground tabular-nums">
+      <div className="flex items-baseline justify-between mb-3 gap-3">
+        <div>
+          <h2 className="text-sm font-medium">Monthly token budget</h2>
+          {subtitle && (
+            <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>
+          )}
+        </div>
+        <span className="text-xs text-muted-foreground tabular-nums shrink-0 text-right">
+          <span className="text-foreground font-medium">{formatTokens(totalUsed)}</span> used this month
+          <span className="mx-1.5">·</span>
           <span className="text-foreground font-medium">{formatTokens(remaining)}</span> remaining
           <span className="mx-1.5">·</span>
-          {remainingPct}% of {formatTokens(totalBudget)}
+          {formatTokens(totalBudget)} catalog cap ({remainingPct}% left)
         </span>
       </div>
 
@@ -101,7 +134,7 @@ function TokenUsageBar({ data }: { data: TokenUsageData }) {
         {modelsWithWidth.map((m, i) => (
           <div
             key={i}
-            title={`${m.displayName} (${m.platform}) — ${formatTokens(m.remainingTokens)} remaining`}
+            title={`${m.displayName} (${m.platform}) — ${formatTokens(m.used)} used of ${formatTokens(m.budget)} monthly cap`}
             style={{
               width: `${m.widthPct}%`,
               backgroundColor: platformColors[m.platform] ?? '#94a3b8',
@@ -126,7 +159,9 @@ function TokenUsageBar({ data }: { data: TokenUsageData }) {
             />
             <span className="truncate">{m.displayName}</span>
             <span className="flex-1" />
-            <span className="font-mono text-muted-foreground">{formatTokens(m.remainingTokens)}</span>
+            <span className="font-mono text-muted-foreground">
+              {formatTokens(m.used)} / {formatTokens(m.budget)}
+            </span>
           </div>
         ))}
       </div>
@@ -175,6 +210,11 @@ function SortableModelRow({
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-medium text-sm">{entry.displayName}</span>
           <span className="text-xs text-muted-foreground">{entry.platform}</span>
+          {entry.supportsVision && (
+            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-normal">
+              Vision
+            </Badge>
+          )}
           {entry.penalty > 0 && (
             <span className="text-xs text-amber-600 dark:text-amber-400">
               −{entry.penalty} penalty
@@ -201,9 +241,24 @@ export default function FallbackPage() {
   const queryClient = useQueryClient()
   const [localEntries, setLocalEntries] = useState<FallbackEntry[] | null>(null)
 
-  const { data: entries = [], isLoading } = useQuery<FallbackEntry[]>({
+  const { data: chain, isLoading } = useQuery<FallbackChainResponse>({
     queryKey: ['fallback'],
     queryFn: () => apiFetch('/api/fallback'),
+  })
+
+  const visionOnlyRouting = chain?.visionOnlyRouting ?? false
+  const entries = chain?.entries ?? []
+  const modelFilter: ModelFilter = visionOnlyRouting ? 'vision' : 'all'
+
+  const visionOnlyMutation = useMutation({
+    mutationFn: (enabled: boolean) =>
+      apiFetch('/api/fallback/vision-only', {
+        method: 'PUT',
+        body: JSON.stringify({ enabled }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['fallback'] })
+    },
   })
 
   const { data: tokenUsage } = useQuery<TokenUsageData>({
@@ -230,7 +285,11 @@ export default function FallbackPage() {
   })
 
   const allEntries = localEntries ?? entries
-  const displayEntries = allEntries.filter(e => e.keyCount > 0)
+  const configuredEntries = allEntries.filter(e => e.keyCount > 0)
+  const displayEntries = modelFilter === 'vision'
+    ? configuredEntries.filter(e => e.supportsVision)
+    : configuredEntries
+  const visionCount = configuredEntries.filter(e => e.supportsVision).length
   const unconfiguredPlatforms = [...new Set(allEntries.filter(e => e.keyCount === 0).map(e => e.platform))]
 
   const sensors = useSensors(
@@ -272,11 +331,19 @@ export default function FallbackPage() {
 
   const hasChanges = localEntries !== null
 
+  const tokenUsageForBar = tokenUsage && tokenUsage.totalBudget > 0
+    ? (visionOnlyRouting ? filterTokenUsageForVision(tokenUsage) : tokenUsage)
+    : null
+
   return (
     <div>
       <PageHeader
         title="Fallback chain"
-        description="Drag to reorder. Requests try models top-to-bottom until one succeeds."
+        description={
+          visionOnlyRouting
+            ? 'Vision-only mode is on: all API traffic (Codex, Claude Code, playground) uses only vision-capable models below.'
+            : 'Drag to reorder. Requests try models top-to-bottom until one succeeds.'
+        }
         actions={
           <>
             <Button variant="outline" size="sm" onClick={() => sortMutation.mutate('intelligence')} disabled={sortMutation.isPending}>
@@ -293,20 +360,55 @@ export default function FallbackPage() {
       />
 
       <div className="space-y-6">
-        {tokenUsage && tokenUsage.totalBudget > 0 && (
-          <TokenUsageBar data={tokenUsage} />
+        {tokenUsageForBar && tokenUsageForBar.totalBudget > 0 && (
+          <TokenUsageBar
+            data={tokenUsageForBar}
+            subtitle={visionOnlyRouting ? 'Vision-capable models only (matches routing below)' : undefined}
+          />
         )}
 
         {isLoading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
-        ) : displayEntries.length === 0 ? (
+        ) : configuredEntries.length === 0 ? (
           <div className="rounded-lg border border-dashed p-8 text-center">
             <p className="text-sm text-muted-foreground">
               No models available. Add API keys on the <a href="/keys" className="underline text-foreground">Keys page</a> first.
             </p>
           </div>
+        ) : displayEntries.length === 0 ? (
+          <div className="rounded-lg border border-dashed p-8 text-center">
+            <p className="text-sm text-muted-foreground">
+              Vision-only routing is on, but no vision-capable models have keys. Add a Google or Llama 4 key on the{' '}
+              <a href="/keys" className="underline text-foreground">Keys page</a>, or switch routing to All models.
+            </p>
+          </div>
         ) : (
           <>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Show</span>
+                <Select
+                  value={modelFilter}
+                  onValueChange={(v) => visionOnlyMutation.mutate((v ?? 'all') === 'vision')}
+                  disabled={visionOnlyMutation.isPending}
+                >
+                  <SelectTrigger className="w-[220px]" aria-label="Routing mode">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All models (default)</SelectItem>
+                    <SelectItem value="vision">Vision only (routing)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <p className="text-xs text-muted-foreground tabular-nums">
+                {displayEntries.length} of {configuredEntries.length} models with keys
+                {modelFilter === 'all' && visionCount > 0 && (
+                  <span> · {visionCount} support vision</span>
+                )}
+              </p>
+            </div>
+
             <div className="rounded-lg border divide-y overflow-hidden">
               <DndContext
                 sensors={sensors}

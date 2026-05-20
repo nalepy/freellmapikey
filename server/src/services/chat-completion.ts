@@ -7,7 +7,13 @@ import type {
   ChatToolChoice,
   ChatToolDefinition,
 } from '@freellmapi/shared/types.js';
-import { getDb } from '../db/index.js';
+import { getDb, getVisionOnlyRouting } from '../db/index.js';
+import {
+  estimateContentTokens,
+  messagesHaveImages,
+  modelSupportsVision,
+  textFromMessageContent,
+} from '../lib/message-content.js';
 import { routeRequest, recordRateLimitHit, recordSuccess, type RouteResult } from './router.js';
 import { recordRequest, recordTokens, setCooldown } from './ratelimit.js';
 
@@ -26,8 +32,10 @@ const STICKY_TTL_MS = 30 * 60 * 1000;
 
 function getSessionKey(messages: ChatMessage[]): string {
   const firstUser = messages.find(m => m.role === 'user');
-  if (!firstUser || typeof firstUser.content !== 'string') return '';
-  const hash = crypto.createHash('sha1').update(firstUser.content).digest('hex');
+  if (!firstUser) return '';
+  const text = textFromMessageContent(firstUser.content);
+  if (!text) return '';
+  const hash = crypto.createHash('sha1').update(text).digest('hex');
   return `${hash}:${messages.length > 2 ? 'multi' : 'single'}`;
 }
 
@@ -40,6 +48,15 @@ function getStickyModel(messages: ChatMessage[]): number | undefined {
 
   const entry = stickySessionMap.get(key);
   if (!entry) return undefined;
+
+  if (messagesHaveImages(messages) || getVisionOnlyRouting()) {
+    const row = getDb().prepare('SELECT platform, model_id FROM models WHERE id = ?').get(entry.modelDbId) as
+      | { platform: string; model_id: string }
+      | undefined;
+    if (!row || !modelSupportsVision(row.platform, row.model_id)) {
+      return undefined;
+    }
+  }
 
   if (Date.now() - entry.lastUsed > STICKY_TTL_MS) {
     stickySessionMap.delete(key);
@@ -115,8 +132,13 @@ function resolvePreferredModel(
   }
 
   const db = getDb();
-  const enabled = db.prepare('SELECT id FROM models WHERE model_id = ? AND enabled = 1').get(requestedModel) as { id: number } | undefined;
+  const enabled = db.prepare('SELECT id, platform, model_id FROM models WHERE model_id = ? AND enabled = 1')
+    .get(requestedModel) as { id: number; platform: string; model_id: string } | undefined;
   if (enabled) {
+    const needsVision = messagesHaveImages(messages) || getVisionOnlyRouting();
+    if (needsVision && !modelSupportsVision(enabled.platform, enabled.model_id)) {
+      return { preferredModel: getStickyModel(messages) };
+    }
     return { preferredModel: enabled.id };
   }
 
@@ -175,10 +197,8 @@ export async function runChatCompletion(
     allowUnknownModel = false,
   } = input;
 
-  const estimatedInputTokens = messages.reduce((sum, m) => {
-    if (typeof m.content !== 'string') return sum;
-    return sum + Math.ceil(m.content.length / 4);
-  }, 0);
+  const requiresVision = messagesHaveImages(messages) || getVisionOnlyRouting();
+  const estimatedInputTokens = messages.reduce((sum, m) => sum + estimateContentTokens(m.content), 0);
   const estimatedTotal = estimatedInputTokens + (max_tokens ?? 1000);
 
   const modelResolution = resolvePreferredModel(requestedModel, messages, allowUnknownModel);
@@ -194,7 +214,12 @@ export async function runChatCompletion(
   for (let attempt = 0; attempt < MAX_COMPLETION_RETRIES; attempt++) {
     let route: RouteResult;
     try {
-      route = routeRequest(estimatedTotal, skipKeys.size > 0 ? skipKeys : undefined, preferredModel);
+      route = routeRequest(
+        estimatedTotal,
+        skipKeys.size > 0 ? skipKeys : undefined,
+        preferredModel,
+        requiresVision ? { requiresVision: true } : undefined,
+      );
     } catch (err: any) {
       if (lastError) {
         handlers.onRateLimited({
@@ -223,10 +248,15 @@ export async function runChatCompletion(
             { temperature, max_tokens, top_p, tools, tool_choice, parallel_tool_calls },
           );
 
+          let streamUsage: { prompt_tokens?: number; completion_tokens?: number } | undefined;
           for await (const chunk of gen) {
             if (!streamStarted) {
               handlers.onStreamStart(route, attempt);
               streamStarted = true;
+            }
+            const usage = (chunk as { usage?: { prompt_tokens?: number; completion_tokens?: number } }).usage;
+            if (usage?.prompt_tokens != null || usage?.completion_tokens != null) {
+              streamUsage = usage;
             }
             const text = chunk.choices[0]?.delta?.content ?? '';
             totalOutputTokens += Math.ceil(text.length / 4);
@@ -237,11 +267,13 @@ export async function runChatCompletion(
             handlers.onStreamStart(route, attempt);
           }
 
-          handlers.onStreamDone(route, estimatedInputTokens, totalOutputTokens, Date.now() - start);
-          recordTokens(route.platform, route.modelId, route.keyId, estimatedInputTokens + totalOutputTokens);
+          const loggedInput = streamUsage?.prompt_tokens ?? estimatedInputTokens;
+          const loggedOutput = streamUsage?.completion_tokens ?? totalOutputTokens;
+          handlers.onStreamDone(route, loggedInput, loggedOutput, Date.now() - start);
+          recordTokens(route.platform, route.modelId, route.keyId, loggedInput + loggedOutput);
           recordSuccess(route.modelDbId);
           setStickyModel(messages, route.modelDbId);
-          logRequest(route.platform, route.modelId, 'success', estimatedInputTokens, totalOutputTokens, Date.now() - start, null);
+          logRequest(route.platform, route.modelId, 'success', loggedInput, loggedOutput, Date.now() - start, null);
           return;
         } catch (streamErr: any) {
           if (streamStarted) {
@@ -274,9 +306,20 @@ export async function runChatCompletion(
         return;
       }
     } catch (err: any) {
-      logRequest(route.platform, route.modelId, 'error', estimatedInputTokens, 0, Date.now() - start, err.message);
+      const willRetry = isRetryableProviderError(err);
+      // Do not bill the full estimated context on every fallback hop — that inflated
+      // Analytics when Codex retried across many models (same prompt logged N times).
+      logRequest(
+        route.platform,
+        route.modelId,
+        'error',
+        willRetry ? 0 : estimatedInputTokens,
+        0,
+        Date.now() - start,
+        err.message,
+      );
 
-      if (isRetryableProviderError(err)) {
+      if (willRetry) {
         const skipId = `${route.platform}:${route.modelId}:${route.keyId}`;
         skipKeys.add(skipId);
         setCooldown(route.platform, route.modelId, route.keyId, 120_000);

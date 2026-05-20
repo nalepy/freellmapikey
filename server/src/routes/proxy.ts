@@ -44,9 +44,20 @@ const systemMessageSchema = z.object({
   name: z.string().optional(),
 });
 
+const chatContentPartSchema = z.union([
+  z.object({ type: z.literal('text'), text: z.string() }),
+  z.object({
+    type: z.literal('image_url'),
+    image_url: z.object({
+      url: z.string().min(1),
+      detail: z.enum(['auto', 'low', 'high']).optional(),
+    }),
+  }),
+]);
+
 const userMessageSchema = z.object({
   role: z.literal('user'),
-  content: z.string(),
+  content: z.union([z.string(), z.array(chatContentPartSchema)]),
   name: z.string().optional(),
 });
 

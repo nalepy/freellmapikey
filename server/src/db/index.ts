@@ -950,3 +950,22 @@ export function regenerateUnifiedKey(): string {
   db.prepare("UPDATE settings SET value = ? WHERE key = 'unified_api_key'").run(key);
   return key;
 }
+
+const VISION_ONLY_ROUTING_KEY = 'vision_only_routing';
+
+export function getVisionOnlyRouting(): boolean {
+  const db = getDb();
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(VISION_ONLY_ROUTING_KEY) as { value: string } | undefined;
+  return row?.value === '1';
+}
+
+export function setVisionOnlyRouting(enabled: boolean): void {
+  const db = getDb();
+  const value = enabled ? '1' : '0';
+  const existing = db.prepare('SELECT value FROM settings WHERE key = ?').get(VISION_ONLY_ROUTING_KEY);
+  if (existing) {
+    db.prepare('UPDATE settings SET value = ? WHERE key = ?').run(value, VISION_ONLY_ROUTING_KEY);
+  } else {
+    db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run(VISION_ONLY_ROUTING_KEY, value);
+  }
+}

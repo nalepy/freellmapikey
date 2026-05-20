@@ -1,6 +1,7 @@
 import { getDb } from '../db/index.js';
 import { getProvider } from '../providers/index.js';
 import { decrypt } from '../lib/crypto.js';
+import { modelSupportsVision } from '../lib/message-content.js';
 import { canMakeRequest, canUseTokens, isOnCooldown } from './ratelimit.js';
 import type { BaseProvider } from '../providers/base.js';
 
@@ -131,7 +132,17 @@ export function getAllPenalties(): Array<{ modelDbId: number; count: number; pen
  * @param skipKeys - set of "platform:modelId:keyId" to skip (failed on this request)
  * @param preferredModelDbId - try this model first (sticky session)
  */
-export function routeRequest(estimatedTokens = 1000, skipKeys?: Set<string>, preferredModelDbId?: number): RouteResult {
+export interface RouteRequestOptions {
+  /** When true, skip models that cannot accept image inputs. */
+  requiresVision?: boolean;
+}
+
+export function routeRequest(
+  estimatedTokens = 1000,
+  skipKeys?: Set<string>,
+  preferredModelDbId?: number,
+  options?: RouteRequestOptions,
+): RouteResult {
   const db = getDb();
 
   // Get fallback chain ordered by priority
@@ -162,6 +173,10 @@ export function routeRequest(estimatedTokens = 1000, skipKeys?: Set<string>, pre
     // Get model details
     const model = db.prepare('SELECT * FROM models WHERE id = ? AND enabled = 1').get(entry.model_db_id) as ModelRow | undefined;
     if (!model) continue;
+
+    if (options?.requiresVision && !modelSupportsVision(model.platform, model.model_id)) {
+      continue;
+    }
 
     // Check if we have a provider for this platform
     const provider = getProvider(model.platform as any);

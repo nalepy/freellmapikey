@@ -1,4 +1,5 @@
 import type {
+  ChatContentPart,
   ChatMessage,
   ChatCompletionResponse,
   ChatCompletionChunk,
@@ -7,12 +8,15 @@ import type {
   ChatToolDefinition,
   TokenUsage,
 } from '@freellmapi/shared/types.js';
+import { parseDataUrl, textFromMessageContent } from '../lib/message-content.js';
 import { BaseProvider, type CompletionOptions } from './base.js';
 
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 
 interface GeminiPart {
   text?: string;
+  inlineData?: { mimeType: string; data: string };
+  fileData?: { mimeType: string; fileUri: string };
   thoughtSignature?: string;
   functionCall?: {
     id?: string;
@@ -100,6 +104,30 @@ function toGeminiToolConfig(toolChoice?: ChatToolChoice): { functionCallingConfi
   };
 }
 
+function openAIContentPartsToGemini(parts: ChatContentPart[]): GeminiPart[] {
+  const geminiParts: GeminiPart[] = [];
+  for (const part of parts) {
+    if (part.type === 'text' && part.text.length > 0) {
+      geminiParts.push({ text: part.text });
+      continue;
+    }
+    if (part.type === 'image_url') {
+      const url = part.image_url.url;
+      const dataUrl = parseDataUrl(url);
+      if (dataUrl) {
+        geminiParts.push({
+          inlineData: { mimeType: dataUrl.mimeType, data: dataUrl.data },
+        });
+      } else if (url.startsWith('http://') || url.startsWith('https://')) {
+        geminiParts.push({
+          fileData: { mimeType: 'image/jpeg', fileUri: url },
+        });
+      }
+    }
+  }
+  return geminiParts;
+}
+
 // Translate OpenAI messages to Gemini format
 function toGeminiContents(messages: ChatMessage[]) {
   const systemMessages = messages
@@ -160,9 +188,16 @@ function toGeminiContents(messages: ChatMessage[]) {
         };
       }
 
+      if (Array.isArray(m.content)) {
+        const parts = openAIContentPartsToGemini(m.content);
+        if (parts.length === 0) return null;
+        return { role: 'user', parts };
+      }
+
+      const text = textFromMessageContent(m.content);
       return {
         role: 'user',
-        parts: [{ text: typeof m.content === 'string' ? m.content : '' }],
+        parts: [{ text }],
       };
     })
     .filter((entry): entry is { role: 'user' | 'model'; parts: GeminiPart[] } => entry !== null);

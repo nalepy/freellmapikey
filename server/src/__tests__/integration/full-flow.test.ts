@@ -53,9 +53,9 @@ describe('Full Integration Flow', () => {
   it('Step 2: Verify fallback chain is populated', async () => {
     const { status, body } = await req(app, 'GET', '/api/fallback');
     expect(status).toBe(200);
-    expect(body.length).toBeGreaterThanOrEqual(50);
-    expect(body[0]).toHaveProperty('priority');
-    expect(body[0]).toHaveProperty('enabled');
+    expect(body.entries.length).toBeGreaterThanOrEqual(50);
+    expect(body.entries[0]).toHaveProperty('priority');
+    expect(body.entries[0]).toHaveProperty('enabled');
   });
 
   it('Step 3: Proxy returns 429 with no keys', async () => {
@@ -119,7 +119,7 @@ describe('Full Integration Flow', () => {
     expect(status).toBe(200);
 
     const { body } = await req(app, 'GET', '/api/fallback');
-    expect(body[0].speedRank).toBe(1);
+    expect(body.entries[0].speedRank).toBe(1);
   });
 
   it('Step 8: Health endpoint works', async () => {

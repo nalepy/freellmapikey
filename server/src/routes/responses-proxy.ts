@@ -18,6 +18,14 @@ const responsesContentPartSchema = z.union([
   z.object({ type: z.literal('input_text'), text: z.string() }),
   z.object({ type: z.literal('output_text'), text: z.string() }),
   z.object({ type: z.literal('text'), text: z.string() }),
+  z.object({
+    type: z.literal('input_image'),
+    image_url: z.union([
+      z.string(),
+      z.object({ url: z.string() }),
+    ]),
+    detail: z.enum(['auto', 'low', 'high', 'original']).optional(),
+  }),
   z.object({ type: z.string() }).passthrough(),
 ]);
 
