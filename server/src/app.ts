@@ -5,6 +5,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { keysRouter } from './routes/keys.js';
 import { modelsRouter } from './routes/models.js';
+import { anthropicProxyRouter } from './routes/anthropic-proxy.js';
+import { responsesProxyRouter } from './routes/responses-proxy.js';
 import { proxyRouter } from './routes/proxy.js';
 import { fallbackRouter } from './routes/fallback.js';
 import { analyticsRouter } from './routes/analytics.js';
@@ -35,7 +37,9 @@ export function createApp() {
   app.use('/api/health', healthRouter);
   app.use('/api/settings', settingsRouter);
 
-  // OpenAI-compatible proxy
+  // Anthropic Messages API (Claude Code), OpenAI Responses API (Codex), Chat Completions
+  app.use('/v1', anthropicProxyRouter);
+  app.use('/v1', responsesProxyRouter);
   app.use('/v1', proxyRouter);
 
   // Health check

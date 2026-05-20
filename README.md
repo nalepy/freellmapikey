@@ -63,6 +63,8 @@ The problem is that stacking them by hand is painful: fourteen different SDKs, f
 ## Features
 
 - **OpenAI-compatible** — `POST /v1/chat/completions` and `GET /v1/models` work with the official OpenAI SDKs and any OpenAI-compatible client (LangChain, LlamaIndex, Continue, Hermes, etc.). Just change `base_url`.
+- **Responses API (Codex)** — `POST /v1/responses` with streaming SSE (`response.output_text.delta`, tool-call events) for [OpenAI Codex](https://developers.openai.com/codex) custom providers using the Responses wire protocol.
+- **Anthropic-compatible** — `POST /v1/messages` and `POST /v1/messages/count_tokens` translate to the same router and providers, so [Claude Code](https://code.claude.com/docs/en/llm-gateway) can point at your local proxy via `ANTHROPIC_BASE_URL`.
 - **Streaming and non-streaming** — Server-Sent Events for `stream: true`, JSON response otherwise. Every provider adapter implements both.
 - **Tool calling** — OpenAI-style `tools` / `tool_choice` requests are passed through, and assistant `tool_calls` + `tool` role follow-up messages round-trip across providers.
 - **Automatic fallover** — If the chosen provider returns a 429, 5xx, or times out, the router skips it, puts the key on a short cooldown, and retries on the next model in your fallback chain (up to 20 attempts).
@@ -205,6 +207,154 @@ print(final.choices[0].message.content)
 Works with `stream=True` as well — you'll get `delta.tool_calls` chunks followed by a `finish_reason: "tool_calls"` close. Under the hood, OpenAI-compatible providers (Groq, Cerebras, SambaNova, Mistral, OpenRouter, GitHub Models, HuggingFace, Cloudflare, Cohere compat) get the request passed through; Gemini requests get translated into Google's `functionDeclarations` / `functionResponse` shape and the response is translated back.
 
 Every response carries an `X-Routed-Via: <platform>/<model>` header so you can see which provider actually served each call. If a request fell over between providers, you'll also see `X-Fallback-Attempts: N`.
+
+**Claude Code (Anthropic-shaped API — no Anthropic account key)**
+
+FreeLLMAPI exposes `POST /v1/messages` in the same wire format Claude Code expects. Traffic goes to **your** server, is translated internally, and is served by your configured free-tier provider keys (Groq, Gemini, etc.). You do **not** put a real Claude/Anthropic API key into this app.
+
+1. Start FreeLLMAPI and add your **provider** keys on the Keys page (Groq, Google, …).
+2. Copy the **unified** key from the dashboard (`freellmapi-…`) — that is the only key Claude Code needs.
+3. Point Claude Code at your proxy:
+
+```bash
+# Requests go to FreeLLMAPI, NOT api.anthropic.com
+export ANTHROPIC_BASE_URL="http://localhost:3001"
+
+# Claude Code's env name is ANTHROPIC_API_KEY, but the VALUE is your freellmapi-… key
+export ANTHROPIC_API_KEY="freellmapi-your-unified-key-from-dashboard"
+
+# Optional: do not set a real Anthropic key; logout of Claude subscription auth if prompted
+claude
+```
+
+Claude model names in requests (e.g. `claude-sonnet-4-20250514`) are labels for Claude Code — the proxy **auto-routes** them through your fallback chain to real free models. The OpenAI endpoint (`/v1/chat/completions`) is unchanged and uses the same `freellmapi-…` key with `base_url=http://localhost:3001/v1`.
+
+**OpenAI Codex (Responses API)**
+
+[Codex](https://developers.openai.com/codex) (CLI + Desktop) talks to custom providers through the **Responses** wire protocol (`POST /v1/responses`), not Chat Completions. A stock FreeLLMAPI install only had `/v1/chat/completions`, which produced errors like `404 Cannot POST /v1/responses`. This repo adds a Responses compatibility layer so Codex can use the same router, keys, and fallback chain as every other client.
+
+**What was added in FreeLLMAPI (server)**
+
+| Piece | Role |
+| --- | --- |
+| `POST /v1/responses` | Accepts Codex Requests/Responses JSON; maps to internal chat completion |
+| `server/src/lib/responses-compat.ts` | Request/response translation (stream + non-stream, tool events) |
+| `server/src/routes/responses-proxy.ts` | Route handler; `allowUnknownModel` so Codex model labels can auto-route |
+| `server/src/lib/proxy-auth.ts` | Shared auth; **localhost** requests skip bearer check (handy for local Codex) |
+| `AUTO_MODEL_ALIASES` | Treats `auto`, `freellmapi-auto`, etc. like the dashboard fallback chain |
+| `scripts/generate-codex-model-catalog.mjs` | Builds a Codex-shaped `model_catalog_json` from `GET /v1/models` |
+
+Mount order in `server/src/app.ts`: Anthropic routes → **Responses** → OpenAI Chat proxy (so `/v1/responses` is not swallowed by the chat handler).
+
+**1. Start FreeLLMAPI**
+
+```bash
+npm run dev
+```
+
+Confirm the API is up: `http://localhost:3001/v1/models` should return **200**. Add provider keys on the **Keys** page and set your **fallback chain** (Analytics will show which models actually succeed — tune the chain if one provider is at 0% success).
+
+**2. Copy your unified key**
+
+From the dashboard header: `freellmapi-…` (same key as for curl / OpenAI SDK).
+
+**3. Codex `config.toml` (working template)**
+
+Edit `%USERPROFILE%\.codex\config.toml` (Codex → Settings → Open config.toml). Example that matches a verified Windows + local FreeLLMAPI setup:
+
+```toml
+personality = "pragmatic"
+model = "auto"
+model_reasoning_effort = "medium"
+model_provider = "freellmapi"
+approval_policy = "never"
+sandbox_mode = "danger-full-access"
+
+# Optional: all enabled models in the CLI picker (regenerate after catalog changes)
+# model_catalog_json = "C:\\Users\\<you>\\.codex\\freellmapi-models.json"
+
+[model_providers.freellmapi]
+name = "FreeLLMAPI (local)"
+base_url = "http://localhost:3001/v1"
+env_key = "CUSTOM_API_KEY"
+wire_api = "responses"
+
+[windows]
+sandbox = "unelevated"
+
+[sandbox_workspace_write]
+network_access = true
+
+[projects.'C:\\Users\\<you>\\Workspace\\freellmapi']
+trust_level = "trusted"
+```
+
+**4. API key env var**
+
+```powershell
+$env:CUSTOM_API_KEY = "freellmapi-your-unified-key-from-dashboard"
+```
+
+Persist it in your user environment or shell profile if you do not want to set it every session.
+
+**5. Restart Codex** after any `config.toml` change (values are read at startup).
+
+**Windows: “Couldn't set up admin sandbox”**
+
+On Windows, Codex tries to create an elevated “admin sandbox” (firewall rules + sandbox users). Older Codex builds often fail with `helper_firewall_rule_create_or_add_failed` / `SetRemoteAddresses` HRESULT `0x80070057` ([openai/codex#17053](https://github.com/openai/codex/issues/17053)). That blocks the Desktop UI even when FreeLLMAPI is fine.
+
+What we did to get Codex working locally:
+
+| Step | Why |
+| --- | --- |
+| `sandbox_mode = "danger-full-access"` in `config.toml` | Runs tools on the host without the broken admin sandbox (trusted local dev only) |
+| `[windows] sandbox = "unelevated"` | Avoids insisting on elevated sandbox setup |
+| `[sandbox_workspace_write] network_access = true` | Lets sandboxed/tooling paths reach `localhost:3001` |
+| Delete stale `%USERPROFILE%\.codex\.sandbox\setup_marker.json` and `setup_error.json` | Forces a clean retry instead of reusing a failed setup from weeks ago |
+| Click **Use backup sandbox** in the Codex UI if the red banner still appears | Official fallback when admin sandbox setup fails |
+| Fully quit and reopen Codex after editing `config.toml` | Desktop does not always hot-reload config |
+
+Optional CLI check (close stdin so Codex does not hang waiting for terminal input):
+
+```powershell
+cmd /c "cd /d C:\Users\Nestor\Workspace\freellmapi && C:\Users\Nestor\AppData\Local\OpenAI\Codex\bin\codex.exe exec --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check -c model_provider=freellmapi \"Reply with exactly: CODEX_OK\" < NUL"
+```
+
+You should see `provider: freellmapi` and a successful reply. If `codex update` is unavailable (Microsoft Store install), stay on `danger-full-access` until a newer Codex build ships with the firewall fix.
+
+**Auto-routing vs the model picker**
+
+| What you set in Codex | What FreeLLMAPI does |
+| --- | --- |
+| `model = "auto"` (recommended) | Uses your **fallback chain** on the first turn; sticky session keeps the same backend for follow-ups. No need to change the picker mid-session. |
+| A Codex label not in the catalog (e.g. `gpt-5.4`, `gpt-5.3-codex`) | Same as auto — name is ignored; router picks from the chain (`allowUnknownModel`). |
+| A real id from the catalog (e.g. `gemini-2.5-flash`) | **Pins** that model (and sticky follow-ups). Use when you want one provider on purpose. |
+
+The dashboard **fallback order** is what “auto” means. Check **Analytics → Per-model breakdown** if routing often hits models with low success rate.
+
+**Model catalog for the picker (optional)**
+
+Codex does not always call `GET /v1/models` for custom providers. Generate a local catalog from your running server:
+
+```powershell
+npm run codex:model-catalog
+```
+
+Writes `%USERPROFILE%\.codex\freellmapi-models.json` (all enabled models plus **Auto**). Uncomment or add in `config.toml`:
+
+```toml
+model_catalog_json = "C:\\Users\\<you>\\.codex\\freellmapi-models.json"
+```
+
+Regenerate after you add keys or change the catalog. The generator must emit Codex `ModelInfo` fields (`display_name`, `supported_reasoning_levels`, etc.) — see `scripts/generate-codex-model-catalog.mjs`. A hand-edited catalog with wrong field names (`displayName`, `visibility: "visible"`, …) makes Codex fail at startup with `failed to parse model_catalog_json`.
+
+The **Codex Desktop** picker may still hide custom-provider entries ([openai/codex#15138](https://github.com/openai/codex/issues/15138)); the CLI and `model = "auto"` in TOML work regardless.
+
+**Identity / cutoff answers**
+
+Codex may still describe itself as the OpenAI Codex product (e.g. “knowledge cutoff October 2024”) because that is Codex’s own system prompt — not text returned by FreeLLMAPI. Inference still goes through your configured free-tier models; check `X-Routed-Via` on HTTP responses or the dashboard Analytics for the actual backend.
+
+Chat Completions (`/v1/chat/completions`) and Claude Code (`/v1/messages`) are unchanged for other tools.
 
 ## Screenshots
 
