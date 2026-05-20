@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { getDb } from '../db/index.js';
+import { clearErrorLogs, getErrorLogFilePath } from '../lib/error-log.js';
 import { modelSupportsVision } from '../lib/message-content.js';
 
 export const analyticsRouter = Router();
@@ -239,10 +240,54 @@ analyticsRouter.get('/errors', (req: Request, res: Response) => {
   })));
 });
 
-// Clear all logged requests (analytics + monthly token usage on Fallback)
+// Detailed error log (kept when analytics is reset)
+analyticsRouter.get('/error-log', (req: Request, res: Response) => {
+  const range = (req.query.range as string) ?? '7d';
+  const limit = Math.min(Math.max(parseInt(String(req.query.limit ?? '100'), 10) || 100, 1), 500);
+  const since = getSinceTimestamp(range);
+  const db = getDb();
+
+  const rows = db.prepare(`
+    SELECT *
+    FROM error_logs
+    WHERE created_at >= ?
+    ORDER BY created_at DESC
+    LIMIT ?
+  `).all(since, limit) as any[];
+
+  res.json({
+    filePath: getErrorLogFilePath(),
+    entries: rows.map(r => ({
+      id: r.id,
+      createdAt: r.created_at,
+      endpoint: r.endpoint,
+      platform: r.platform,
+      modelId: r.model_id,
+      displayName: r.display_name,
+      clientModel: r.client_model,
+      attempt: r.attempt,
+      willRetry: r.will_retry === 1,
+      requiresVision: r.requires_vision === 1,
+      hasImages: r.has_images === 1,
+      stream: r.stream === 1,
+      messageCount: r.message_count,
+      estimatedInputTokens: r.estimated_input_tokens,
+      latencyMs: r.latency_ms,
+      errorCategory: r.error_category,
+      errorMessage: r.error_message,
+      errorDetail: r.error_detail,
+    })),
+  });
+});
+
+analyticsRouter.post('/error-log/reset', (_req: Request, res: Response) => {
+  res.json(clearErrorLogs());
+});
+
+// Clear request stats only (error log is kept for debugging)
 analyticsRouter.post('/reset', (_req: Request, res: Response) => {
   const db = getDb();
   const before = db.prepare('SELECT COUNT(*) as n FROM requests').get() as { n: number };
   db.prepare('DELETE FROM requests').run();
-  res.json({ deleted: before.n });
+  res.json({ deleted: before.n, errorLogKept: true, errorLogFile: getErrorLogFilePath() });
 });

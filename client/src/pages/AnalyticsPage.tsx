@@ -55,12 +55,25 @@ export default function AnalyticsPage() {
     },
   })
 
+  const clearErrorLogMutation = useMutation({
+    mutationFn: () => apiFetch<{ deletedDb: number; clearedFile: boolean }>('/api/analytics/error-log/reset', { method: 'POST' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['analytics', 'error-log'] })
+    },
+  })
+
   function handleResetAnalytics() {
     const ok = window.confirm(
-      'Delete all request history? Analytics charts and the Fallback monthly token bar will reset to zero. API keys and fallback order are not changed.',
+      'Delete all request history? Analytics charts and the Fallback monthly token bar will reset to zero. The detailed error log is kept so you can still debug failures. API keys and fallback order are not changed.',
     )
     if (!ok) return
     resetMutation.mutate()
+  }
+
+  function handleClearErrorLog() {
+    const ok = window.confirm('Delete the detailed error log (database + error.log file)?')
+    if (!ok) return
+    clearErrorLogMutation.mutate()
   }
 
   const { data: summary } = useQuery({
@@ -98,6 +111,11 @@ export default function AnalyticsPage() {
     queryFn: () => apiFetch<{ visionOnlyRouting: boolean }>('/api/fallback'),
   })
 
+  const { data: errorLog } = useQuery({
+    queryKey: ['analytics', 'error-log', range],
+    queryFn: () => apiFetch<{ filePath: string; entries: any[] }>(`/api/analytics/error-log?range=${range}&limit=100`),
+  })
+
   return (
     <div>
       <PageHeader
@@ -117,6 +135,14 @@ export default function AnalyticsPage() {
                 </Button>
               ))}
             </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleClearErrorLog}
+              disabled={clearErrorLogMutation.isPending}
+            >
+              {clearErrorLogMutation.isPending ? 'Clearing…' : 'Clear error log'}
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -297,6 +323,61 @@ export default function AnalyticsPage() {
             )}
           </Panel>
         </div>
+
+        <Panel title="Error log (debug)">
+          <p className="text-xs text-muted-foreground mb-3">
+            Full failure details for troubleshooting (endpoint, vision flags, retry, complete message).
+            Also saved to{' '}
+            <code className="text-[11px] bg-muted px-1 py-0.5 rounded">{errorLog?.filePath ?? 'server/data/error.log'}</code>
+            . Not cleared when you reset analytics.
+          </p>
+          {!errorLog?.entries?.length ? (
+            <p className="text-sm text-muted-foreground text-center py-8">No error log entries</p>
+          ) : (
+            <div className="max-h-[420px] overflow-y-auto -mx-4">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="pl-4">Time</TableHead>
+                    <TableHead>Endpoint</TableHead>
+                    <TableHead>Model</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Flags</TableHead>
+                    <TableHead className="pr-4">Message</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {errorLog.entries.map((e: any) => (
+                    <TableRow key={e.id}>
+                      <TableCell className="pl-4 text-xs text-muted-foreground whitespace-nowrap">
+                        {new Date(e.createdAt).toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-xs">{e.endpoint}</TableCell>
+                      <TableCell className="text-xs">
+                        {e.displayName ?? e.platform ?? '—'}
+                        {e.attempt != null && (
+                          <span className="text-muted-foreground"> · try {e.attempt + 1}</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-xs">{e.errorCategory}</TableCell>
+                      <TableCell className="text-xs">
+                        <div className="flex flex-wrap gap-1">
+                          {e.hasImages && <Badge variant="outline" className="text-[10px]">img</Badge>}
+                          {e.requiresVision && <Badge variant="outline" className="text-[10px]">vision</Badge>}
+                          {e.willRetry && <Badge variant="outline" className="text-[10px]">retry</Badge>}
+                          {e.stream && <Badge variant="outline" className="text-[10px]">stream</Badge>}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-xs pr-4 max-w-md whitespace-pre-wrap break-words">
+                        {e.errorMessage}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </Panel>
       </div>
     </div>
   )

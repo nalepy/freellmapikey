@@ -113,6 +113,30 @@ function createTables(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_requests_created_at ON requests(created_at);
     CREATE INDEX IF NOT EXISTS idx_requests_platform ON requests(platform);
     CREATE INDEX IF NOT EXISTS idx_api_keys_platform ON api_keys(platform);
+
+    CREATE TABLE IF NOT EXISTS error_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      created_at TEXT NOT NULL,
+      endpoint TEXT NOT NULL,
+      platform TEXT,
+      model_id TEXT,
+      display_name TEXT,
+      client_model TEXT,
+      attempt INTEGER,
+      will_retry INTEGER NOT NULL DEFAULT 0,
+      requires_vision INTEGER NOT NULL DEFAULT 0,
+      has_images INTEGER NOT NULL DEFAULT 0,
+      stream INTEGER NOT NULL DEFAULT 0,
+      message_count INTEGER,
+      estimated_input_tokens INTEGER,
+      latency_ms INTEGER,
+      error_category TEXT,
+      error_message TEXT NOT NULL,
+      error_detail TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_error_logs_created_at ON error_logs(created_at);
+    CREATE INDEX IF NOT EXISTS idx_error_logs_platform ON error_logs(platform);
   `);
 }
 

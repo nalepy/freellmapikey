@@ -118,7 +118,7 @@ responsesProxyRouter.post('/responses', async (req: Request, res: Response) => {
     encoder.setInputTokens(estimateResponsesInputTokens(body));
 
     await runChatCompletion(
-      { ...openaiParams, allowUnknownModel: true },
+      { ...openaiParams, allowUnknownModel: true, endpoint: 'responses' },
       {
         onRoutingError: (status, errBody) => {
           res.status(status).json(errBody);
@@ -170,7 +170,7 @@ responsesProxyRouter.post('/responses', async (req: Request, res: Response) => {
   }
 
   await runChatCompletion(
-    { ...openaiParams, allowUnknownModel: true },
+    { ...openaiParams, allowUnknownModel: true, endpoint: 'responses' },
     {
       onRoutingError: (status, errBody) => {
         res.status(status).json(errBody);

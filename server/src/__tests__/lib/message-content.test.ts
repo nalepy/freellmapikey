@@ -22,6 +22,7 @@ describe('message-content', () => {
   it('classifies vision-capable catalog models', () => {
     expect(modelSupportsVision('google', 'gemini-2.5-flash')).toBe(true);
     expect(modelSupportsVision('groq', 'meta-llama/llama-4-scout-17b-16e-instruct')).toBe(true);
+    expect(modelSupportsVision('sambanova', 'Llama-4-Maverick-17B-128E-Instruct')).toBe(false);
     expect(modelSupportsVision('cohere', 'command-a-03-2025')).toBe(false);
   });
 });

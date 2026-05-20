@@ -14,6 +14,7 @@ import {
   modelSupportsVision,
   textFromMessageContent,
 } from '../lib/message-content.js';
+import { appendErrorLog, type ErrorLogEndpoint } from '../lib/error-log.js';
 import { routeRequest, recordRateLimitHit, recordSuccess, type RouteResult } from './router.js';
 import { recordRequest, recordTokens, setCooldown } from './ratelimit.js';
 
@@ -80,12 +81,19 @@ function setStickyModel(messages: ChatMessage[], modelDbId: number) {
 
 export function isRetryableProviderError(err: any): boolean {
   const msg = (err.message ?? '').toLowerCase();
+  if (msg.includes('401') || msg.includes('403') || msg.includes('invalid api key')) {
+    return false;
+  }
   return msg.includes('429') || msg.includes('rate limit') || msg.includes('too many requests')
     || msg.includes('quota') || msg.includes('resource_exhausted')
     || msg.includes('aborted') || msg.includes('timeout') || msg.includes('etimedout')
     || msg.includes('econnrefused') || msg.includes('econnreset')
     || msg.includes('503') || msg.includes('unavailable')
-    || msg.includes('500') || msg.includes('internal server error');
+    || msg.includes('500') || msg.includes('internal server error')
+    || msg.includes('502') || msg.includes('bad gateway')
+    || msg.includes('400') || msg.includes('422') || msg.includes('bad request')
+    || msg.includes('could not process') || msg.includes('invalid_request')
+    || msg.includes('not supported') || msg.includes('unsupported');
 }
 
 export interface ChatCompletionInput {
@@ -100,6 +108,8 @@ export interface ChatCompletionInput {
   parallel_tool_calls?: boolean;
   /** When true, unknown model IDs auto-route (Anthropic clients send claude-* names). */
   allowUnknownModel?: boolean;
+  /** Which proxy surface handled the request (for error diagnostics). */
+  endpoint?: ErrorLogEndpoint;
 }
 
 export interface CompletionErrorBody {
@@ -159,6 +169,39 @@ function resolvePreferredModel(
   };
 }
 
+function logDiagnosticError(
+  input: ChatCompletionInput,
+  ctx: {
+    error: unknown;
+    platform?: string;
+    modelId?: string;
+    displayName?: string;
+    attempt?: number;
+    willRetry?: boolean;
+    requiresVision: boolean;
+    hasImages: boolean;
+    estimatedInputTokens: number;
+    latencyMs: number;
+  },
+) {
+  appendErrorLog({
+    endpoint: input.endpoint ?? 'chat-completions',
+    platform: ctx.platform,
+    modelId: ctx.modelId,
+    displayName: ctx.displayName,
+    clientModel: input.model,
+    attempt: ctx.attempt,
+    willRetry: ctx.willRetry,
+    requiresVision: ctx.requiresVision,
+    hasImages: ctx.hasImages,
+    stream: input.stream ?? false,
+    messageCount: input.messages.length,
+    estimatedInputTokens: ctx.estimatedInputTokens,
+    latencyMs: ctx.latencyMs,
+    error: ctx.error,
+  });
+}
+
 function logRequest(
   platform: string,
   modelId: string,
@@ -197,7 +240,8 @@ export async function runChatCompletion(
     allowUnknownModel = false,
   } = input;
 
-  const requiresVision = messagesHaveImages(messages) || getVisionOnlyRouting();
+  const hasImages = messagesHaveImages(messages);
+  const requiresVision = hasImages || getVisionOnlyRouting();
   const estimatedInputTokens = messages.reduce((sum, m) => sum + estimateContentTokens(m.content), 0);
   const estimatedTotal = estimatedInputTokens + (max_tokens ?? 1000);
 
@@ -221,6 +265,15 @@ export async function runChatCompletion(
         requiresVision ? { requiresVision: true } : undefined,
       );
     } catch (err: any) {
+      logDiagnosticError(input, {
+        error: err,
+        attempt,
+        willRetry: false,
+        requiresVision,
+        hasImages,
+        estimatedInputTokens,
+        latencyMs: Date.now() - start,
+      });
       if (lastError) {
         handlers.onRateLimited({
           error: {
@@ -278,8 +331,20 @@ export async function runChatCompletion(
         } catch (streamErr: any) {
           if (streamStarted) {
             console.error(`[Proxy] Mid-stream error from ${route.displayName}:`, streamErr.message);
+            logDiagnosticError(input, {
+              error: streamErr,
+              platform: route.platform,
+              modelId: route.modelId,
+              displayName: route.displayName,
+              attempt,
+              willRetry: false,
+              requiresVision,
+              hasImages,
+              estimatedInputTokens,
+              latencyMs: Date.now() - start,
+            });
             handlers.onStreamInterrupted(route, estimatedInputTokens, totalOutputTokens, Date.now() - start, streamErr);
-            logRequest(route.platform, route.modelId, 'error', estimatedInputTokens, totalOutputTokens, Date.now() - start, streamErr.message);
+            logRequest(route.platform, route.modelId, 'error', 0, totalOutputTokens, Date.now() - start, streamErr.message);
             return;
           }
           throw streamErr;
@@ -307,13 +372,25 @@ export async function runChatCompletion(
       }
     } catch (err: any) {
       const willRetry = isRetryableProviderError(err);
+      logDiagnosticError(input, {
+        error: err,
+        platform: route.platform,
+        modelId: route.modelId,
+        displayName: route.displayName,
+        attempt,
+        willRetry,
+        requiresVision,
+        hasImages,
+        estimatedInputTokens,
+        latencyMs: Date.now() - start,
+      });
       // Do not bill the full estimated context on every fallback hop — that inflated
       // Analytics when Codex retried across many models (same prompt logged N times).
       logRequest(
         route.platform,
         route.modelId,
         'error',
-        willRetry ? 0 : estimatedInputTokens,
+        0,
         0,
         Date.now() - start,
         err.message,
@@ -339,6 +416,15 @@ export async function runChatCompletion(
     }
   }
 
+  logDiagnosticError(input, {
+    error: lastError ?? new Error('All models exhausted'),
+    attempt: MAX_COMPLETION_RETRIES - 1,
+    willRetry: false,
+    requiresVision,
+    hasImages,
+    estimatedInputTokens,
+    latencyMs: Date.now() - start,
+  });
   handlers.onRateLimited({
     error: {
       message: `All models rate-limited after ${MAX_COMPLETION_RETRIES} attempts. Last: ${lastError?.message}`,

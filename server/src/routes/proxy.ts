@@ -182,6 +182,7 @@ proxyRouter.post('/chat/completions', async (req: Request, res: Response) => {
       tools,
       tool_choice,
       parallel_tool_calls,
+      endpoint: 'chat-completions',
     },
     {
       onRoutingError: (status, body) => {

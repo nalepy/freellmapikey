@@ -35,23 +35,27 @@ export function estimateContentTokens(content: ChatMessage['content']): number {
   return tokens;
 }
 
+/** Lower = tried earlier when requiresVision is set. */
+export function visionRouteSortKey(platform: string, modelId: string): number {
+  const id = modelId.toLowerCase();
+  const p = platform.toLowerCase();
+  if (p === 'google' && id.includes('gemini')) return 0;
+  if (p === 'groq' && id.includes('llama-4-scout')) return 1;
+  if (p === 'cloudflare' && id.includes('llama-4')) return 2;
+  return 3;
+}
+
 /**
- * Heuristic: models in the fallback catalog that accept image inputs.
- * Used when Codex / clients send multimodal messages.
+ * Models that accept image inputs in practice (not just "Llama 4" in the name).
+ * SambaNova/Cerebras Maverick return 400 on multimodal OpenAI-style payloads.
  */
 export function modelSupportsVision(platform: string, modelId: string): boolean {
   const id = modelId.toLowerCase();
+  const p = platform.toLowerCase();
 
-  if (platform === 'google' && id.includes('gemini')) return true;
-
-  if (
-    id.includes('llama-4-scout')
-    || id.includes('llama-4-maverick')
-    || id.includes('meta-llama/llama-4')
-    || id.includes('@cf/meta/llama-4')
-  ) {
-    return true;
-  }
+  if (p === 'google' && id.includes('gemini')) return true;
+  if (p === 'groq' && id.includes('llama-4-scout')) return true;
+  if (p === 'cloudflare' && id.includes('llama-4-scout')) return true;
 
   if (id.includes('gpt-4o') || id.includes('gpt-4.1')) return true;
   if (id.includes('-vl-') || id.includes('vision') || id.includes('pixtral')) return true;

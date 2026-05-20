@@ -126,7 +126,7 @@ anthropicProxyRouter.post('/messages', async (req: Request, res: Response) => {
     );
 
     await runChatCompletion(
-      { ...openaiParams, allowUnknownModel: true },
+      { ...openaiParams, allowUnknownModel: true, endpoint: 'anthropic' },
       {
         onRoutingError: (status, body) => {
           res.status(status).json({

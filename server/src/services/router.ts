@@ -1,7 +1,7 @@
 import { getDb } from '../db/index.js';
 import { getProvider } from '../providers/index.js';
 import { decrypt } from '../lib/crypto.js';
-import { modelSupportsVision } from '../lib/message-content.js';
+import { modelSupportsVision, visionRouteSortKey } from '../lib/message-content.js';
 import { canMakeRequest, canUseTokens, isOnCooldown } from './ratelimit.js';
 import type { BaseProvider } from '../providers/base.js';
 
@@ -165,6 +165,25 @@ export function routeRequest(
       const [preferred] = sortedChain.splice(idx, 1);
       sortedChain.unshift(preferred);
     }
+  }
+
+  if (options?.requiresVision) {
+    const modelMeta = new Map<number, { platform: string; model_id: string }>();
+    for (const entry of sortedChain) {
+      const row = db.prepare('SELECT platform, model_id FROM models WHERE id = ?')
+        .get(entry.model_db_id) as { platform: string; model_id: string } | undefined;
+      if (row) modelMeta.set(entry.model_db_id, row);
+    }
+    sortedChain.sort((a, b) => {
+      if (a.effectivePriority !== b.effectivePriority) {
+        return a.effectivePriority - b.effectivePriority;
+      }
+      const ma = modelMeta.get(a.model_db_id);
+      const mb = modelMeta.get(b.model_db_id);
+      const ka = ma ? visionRouteSortKey(ma.platform, ma.model_id) : 99;
+      const kb = mb ? visionRouteSortKey(mb.platform, mb.model_id) : 99;
+      return ka - kb;
+    });
   }
 
   for (const entry of sortedChain) {
