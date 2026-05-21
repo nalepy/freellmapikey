@@ -7,7 +7,7 @@ export default function GuidesPage() {
     <div>
       <PageHeader
         title="Guides"
-        description="VS Code and OpenAI-compatible clients use your local proxy. Claude Code and Codex guides restore factory Anthropic/OpenAI settings."
+        description="Client setup for local proxy and factory rollback — VS Code, Claude Code CLI, Codex, and OpenAI SDK."
       />
 
       <div className="space-y-8">

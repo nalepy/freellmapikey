@@ -36,8 +36,8 @@ export function UnifiedKeySection() {
           <h2 className="text-sm font-medium">Your unified API key</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
             One key for Continue, Cline, the OpenAI SDK, Cursor, and other OpenAI-compatible clients (
-            <code className="font-mono">api_key</code> at the base URL below). Claude Code and Codex stay on factory
-            Anthropic/OpenAI sign-in — see restore guides on this tab.
+            <code className="font-mono">api_key</code> at the base URL below). Claude Code and Codex have separate
+            configure and restore steps on this tab.
           </p>
         </div>
         <Button

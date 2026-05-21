@@ -74,8 +74,8 @@ The problem is that stacking them by hand is painful: many different SDKs, rate 
 ## Features
 
 - **OpenAI-compatible** — `POST /v1/chat/completions` and `GET /v1/models` work with the official OpenAI SDKs and any OpenAI-compatible client (LangChain, LlamaIndex, Continue, Hermes, etc.). Just change `base_url`.
-- **Responses API (Codex)** — `POST /v1/responses` with streaming SSE for advanced use; **Guides** restore Codex to factory OpenAI sign-in instead of a local `base_url`.
-- **Anthropic-compatible** — `POST /v1/messages` and `POST /v1/messages/count_tokens` for advanced integrations; dashboard **Guides** keep Claude Code on factory `api.anthropic.com` (restore steps if you previously used a local base URL).
+- **Responses API (Codex)** — `POST /v1/responses` with streaming SSE; **Guides** walk through local Codex `config.toml` and factory rollback.
+- **Anthropic-compatible** — `POST /v1/messages` and `POST /v1/messages/count_tokens` for Claude Code CLI; **Guides** include local `ANTHROPIC_BASE_URL` setup and factory restore.
 - **Streaming and non-streaming** — Server-Sent Events for `stream: true`, JSON response otherwise. Every provider adapter implements both.
 - **Tool calling** — OpenAI-style `tools` / `tool_choice` requests are passed through, and assistant `tool_calls` + `tool` role follow-up messages round-trip across providers.
 - **Vision (Codex & chat)** — Pasted images in Codex (`input_image` on `/v1/responses`) and multimodal user messages on `/v1/chat/completions` are routed to vision-capable models (Gemini, Llama 4, etc.); text-only backends are skipped when images are present.
@@ -120,7 +120,7 @@ echo "ENCRYPTION_KEY=$(node -e "console.log(require('crypto').randomBytes(32).to
 npm run dev
 ```
 
-Open http://localhost:5173 (the Vite dev UI), add your provider keys on the **Keys** page, reorder the **Fallback Chain** to taste, and grab your unified API key from **Keys** or **Guides**. Use **Guides** for VS Code (Continue, Cline) and OpenAI-compatible clients. Claude Code and Codex should stay on factory Anthropic/OpenAI settings (restore steps on **Guides**).
+Open http://localhost:5173 (the Vite dev UI), add your provider keys on the **Keys** page, reorder the **Fallback Chain** to taste, and grab your unified API key from **Keys** or **Guides**. Use **Guides** for VS Code (Continue, Cline), Claude Code CLI, Codex, and OpenAI-compatible clients — each integration has **configure local proxy** and **restore factory** sections where relevant.
 
 **Hugging Face & Together AI**
 
@@ -226,30 +226,27 @@ Works with `stream=True` as well — you'll get `delta.tool_calls` chunks follow
 
 Every response carries an `X-Routed-Via: <platform>/<model>` header so you can see which provider actually served each call. If a request fell over between providers, you'll also see `X-Fallback-Attempts: N`.
 
-**Claude Code (factory settings — not the local proxy)**
+**Claude Code (CLI — local proxy or factory)**
 
-The server still exposes `POST /v1/messages` for advanced setups, but the dashboard **Guides** tab no longer routes Claude Code through FreeLLMAPIKey. Use **Continue** or **Cline** in VS Code for local free-tier routing.
+The **Guides** tab documents both setups. **CLI only** — Claude Desktop cannot override `ANTHROPIC_BASE_URL`.
 
-To **restore factory** Anthropic routing after a previous local setup:
-
-1. Remove `ANTHROPIC_BASE_URL` and any FreeLLMAPIKey value from `ANTHROPIC_API_KEY` in your shell profile and current session.
-2. Edit `%USERPROFILE%\.claude\settings.json` (Windows) or `~/.claude/settings.json` (macOS/Linux) — delete the `env` block that pointed at `http://localhost:3001`, or clear `env` entirely.
-3. In `claude`, run `/logout` if you mixed a FreeLLMAPIKey key with claude.ai login, then sign in with Anthropic as usual.
-4. Claude **Desktop** (Code tab): leave managed environment as-is (no custom `ANTHROPIC_BASE_URL`).
+*Configure local proxy* (terminal `claude` command):
 
 ```bash
-unset ANTHROPIC_BASE_URL
-unset ANTHROPIC_API_KEY   # only if it held your FreeLLMAPIKey unified key
+export ANTHROPIC_BASE_URL="http://localhost:3001"
+export ANTHROPIC_API_KEY="freellmapikey-your-unified-key-from-dashboard"
 claude
 ```
 
 ```powershell
-Remove-Item Env:ANTHROPIC_BASE_URL -ErrorAction SilentlyContinue
-Remove-Item Env:ANTHROPIC_API_KEY -ErrorAction SilentlyContinue
+$env:ANTHROPIC_BASE_URL = "http://localhost:3001"
+$env:ANTHROPIC_API_KEY = "freellmapikey-your-unified-key-from-dashboard"
 claude
 ```
 
-Traffic should go to `https://api.anthropic.com` again; this app’s **Usage log** should stay empty for Claude sessions.
+Optional `~/.claude/settings.json` (or `%USERPROFILE%\.claude\settings.json` on Windows) with the same `env` keys. If you see a claude.ai token conflict, run `/logout` in the CLI first. Test with `Reply with exactly: freellmapikey-OK` and confirm **Analytics → Usage log**.
+
+*Restore factory* Anthropic routing: unset `ANTHROPIC_BASE_URL` and remove the FreeLLMAPIKey value from `ANTHROPIC_API_KEY` / `settings.json` `env`, then use Anthropic or claude.ai sign-in as usual. Usage log should stay empty for Claude when traffic is off the proxy.
 
 **Continue (VS Code)**
 
@@ -320,21 +317,25 @@ The [Cline](https://marketplace.visualstudio.com/items?itemName=saoudrizwan.clau
 
 If Plan and Act modes show separate model fields, set both to `auto` or the same slug. Docs: [OpenAI Compatible provider](https://docs.cline.bot/provider-config/openai-compatible). Full steps are on the dashboard **Guides** tab.
 
-**OpenAI Codex (factory settings — not the local proxy)**
+**OpenAI Codex (local proxy or factory)**
 
-FreeLLMAPIKey still implements `POST /v1/responses` for advanced use, but **Guides** no longer walk through pointing Codex at `localhost`. Restore factory OpenAI routing:
-
-1. Edit `%USERPROFILE%\.codex\config.toml` (Windows) or `~/.codex/config.toml` (macOS/Linux) — Codex → Settings → Open config.toml.
-2. Remove `[model_providers.freellmapikey]`, `model_provider = "freellmapikey"`, and any `model_catalog_json` aimed at `freellmapikey-models.json` (delete that JSON file if present).
-3. Unset `CUSTOM_API_KEY` if you only used it for FreeLLMAPIKey (`Remove-Item Env:CUSTOM_API_KEY` in PowerShell).
-4. Set `model_provider = "openai"` (or remove the line), sign in with your OpenAI account in Codex, and fully quit/reopen Codex.
+*Configure local proxy:* set `CUSTOM_API_KEY` to your unified key, then edit `~/.codex/config.toml` (Codex → Settings → Open config.toml):
 
 ```toml
-# Remove FreeLLMAPIKey / localhost base_url blocks entirely.
-model_provider = "openai"
+model_provider = "freellmapikey"
+model = "auto"
+
+[model_providers.freellmapikey]
+name = "FreeLLMAPIKey (local)"
+base_url = "http://localhost:3001/v1"
+env_key = "CUSTOM_API_KEY"
+wire_api = "responses"
+requires_openai_auth = false
 ```
 
-For local free-tier models in the editor, use **Continue** or **Cline** (above) instead of Codex. See [Codex configuration](https://developers.openai.com/codex/config).
+Optional: sync `~/.codex/freellmapikey-models.json` from the dashboard **Guides** tab or `npm run codex:model-catalog`. Restart Codex after saving.
+
+*Restore factory* OpenAI routing: remove `[model_providers.freellmapikey]`, set `model_provider = "openai"`, unset `CUSTOM_API_KEY`, sign in with OpenAI in Codex, quit and reopen. See [Codex configuration](https://developers.openai.com/codex/config) and the **Guides** tab for full snippets.
 
 ## Screenshots
 
