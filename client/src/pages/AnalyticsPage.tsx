@@ -5,6 +5,7 @@ import {
   LineChart, Line, Legend,
 } from 'recharts'
 import { apiFetch } from '@/lib/api'
+import { formatLocalDateTime, formatLocalTime, formatTimelineLabel } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -219,9 +220,18 @@ export default function AnalyticsPage() {
                 <ResponsiveContainer width="100%" height={240}>
                   <LineChart data={timeline} margin={{ top: 6, right: 6, left: -12, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="2 4" stroke={gridStyle} />
-                    <XAxis dataKey="timestamp" tick={axisStyle} tickLine={false} axisLine={{ stroke: gridStyle }} />
+                    <XAxis
+                      dataKey="timestamp"
+                      tick={axisStyle}
+                      tickLine={false}
+                      axisLine={{ stroke: gridStyle }}
+                      tickFormatter={(v) => formatTimelineLabel(String(v), range === '24h')}
+                    />
                     <YAxis tick={axisStyle} tickLine={false} axisLine={false} />
-                    <Tooltip contentStyle={{ backgroundColor: 'var(--popover)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }} />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: 'var(--popover)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}
+                      labelFormatter={(v) => formatTimelineLabel(String(v), range === '24h')}
+                    />
                     <Legend wrapperStyle={{ fontSize: 12 }} iconType="line" />
                     <Line type="monotone" dataKey="successCount" name="Success" stroke={primaryFill} strokeWidth={1.5} dot={false} />
                     <Line type="monotone" dataKey="failureCount" name="Failures" stroke="var(--destructive)" strokeWidth={1.5} dot={false} />
@@ -313,7 +323,7 @@ export default function AnalyticsPage() {
                         <TableCell className="pl-4 text-xs">{e.platform}</TableCell>
                         <TableCell className="text-xs max-w-[200px] truncate">{e.error}</TableCell>
                         <TableCell className="text-right text-xs text-muted-foreground tabular-nums pr-4">
-                          {new Date(e.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {formatLocalTime(e.createdAt)}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -350,7 +360,7 @@ export default function AnalyticsPage() {
                   {errorLog.entries.map((e: any) => (
                     <TableRow key={e.id}>
                       <TableCell className="pl-4 text-xs text-muted-foreground whitespace-nowrap">
-                        {new Date(e.createdAt).toLocaleString()}
+                        {formatLocalDateTime(e.createdAt)}
                       </TableCell>
                       <TableCell className="text-xs">{e.endpoint}</TableCell>
                       <TableCell className="text-xs">

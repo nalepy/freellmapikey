@@ -119,15 +119,28 @@ function anthropicAssistantToOpenAI(blocks: AnthropicContentBlock[]): ChatMessag
 
 function anthropicImageToOpenAI(block: AnthropicContentBlock): ChatContentPart | null {
   if (block.type !== 'image') return null;
-  const src = (block as { source?: { type?: string; media_type?: string; data?: string } }).source;
-  if (src?.type !== 'base64' || !src.media_type || !src.data) return null;
-  return {
-    type: 'image_url',
-    image_url: {
-      url: `data:${src.media_type};base64,${src.data}`,
-      detail: 'auto',
-    },
-  };
+  const src = (block as {
+    source?: { type?: string; media_type?: string; data?: string; url?: string };
+  }).source;
+  if (src?.type === 'base64' && src.media_type && src.data) {
+    return {
+      type: 'image_url',
+      image_url: {
+        url: `data:${src.media_type};base64,${src.data}`,
+        detail: 'auto',
+      },
+    };
+  }
+  if (src?.type === 'url' && typeof src.url === 'string' && src.url.length > 0) {
+    return {
+      type: 'image_url',
+      image_url: {
+        url: src.url,
+        detail: 'auto',
+      },
+    };
+  }
+  return null;
 }
 
 function anthropicUserToOpenAI(blocks: AnthropicContentBlock[]): ChatMessage[] {

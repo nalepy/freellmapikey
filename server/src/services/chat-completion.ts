@@ -275,9 +275,13 @@ export async function runChatCompletion(
         latencyMs: Date.now() - start,
       });
       if (lastError) {
+        preferredModel = undefined;
+        const visionHint = requiresVision
+          ? ' Only vision-capable models were eligible (image in request and/or vision-only routing).'
+          : '';
         handlers.onRateLimited({
           error: {
-            message: `All models rate-limited. Last error: ${lastError.message}`,
+            message: `All models rate-limited.${visionHint} Last error: ${lastError.message}`,
             type: 'rate_limit_error',
           },
         });
@@ -402,6 +406,8 @@ export async function runChatCompletion(
         setCooldown(route.platform, route.modelId, route.keyId, 120_000);
         recordRateLimitHit(route.modelDbId);
         lastError = err;
+        // Sticky session would re-prioritize the same model on every hop; clear it after a failure.
+        preferredModel = undefined;
         console.log(`[Proxy] ${err.message.slice(0, 60)} from ${route.displayName}, falling back (attempt ${attempt + 1}/${MAX_COMPLETION_RETRIES})`);
         continue;
       }
@@ -425,9 +431,12 @@ export async function runChatCompletion(
     estimatedInputTokens,
     latencyMs: Date.now() - start,
   });
+  const visionHint = requiresVision
+    ? ' Only vision-capable models were eligible (image in request and/or vision-only routing).'
+    : '';
   handlers.onRateLimited({
     error: {
-      message: `All models rate-limited after ${MAX_COMPLETION_RETRIES} attempts. Last: ${lastError?.message}`,
+      message: `All models rate-limited after ${MAX_COMPLETION_RETRIES} attempts.${visionHint} Last: ${lastError?.message}`,
       type: 'rate_limit_error',
     },
   });

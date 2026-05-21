@@ -64,7 +64,7 @@ function Brand() {
       <div className="min-w-0">
         <span className="font-semibold tracking-tight text-sm">FreeLLMAPI</span>
         <span className="hidden sm:block text-[11px] text-muted-foreground leading-tight">
-          OpenAI · Claude Code · Codex
+          OpenAI · Claude Code · Codex · Vision
         </span>
       </div>
     </div>

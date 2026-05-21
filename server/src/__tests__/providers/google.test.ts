@@ -170,6 +170,49 @@ describe('GoogleProvider', () => {
     expect(capturedBody.toolConfig.functionCallingConfig.allowedFunctionNames).toEqual(['get_weather']);
   });
 
+  it('strips unsupported JSON Schema keys from tool parameters (Codex/OpenAI)', async () => {
+    let capturedBody: any;
+    vi.spyOn(global, 'fetch').mockImplementation(async (_url, init) => {
+      capturedBody = JSON.parse((init as any).body);
+      return {
+        ok: true,
+        json: () => Promise.resolve({
+          candidates: [{ content: { parts: [{ text: 'ok' }] }, finishReason: 'STOP' }],
+          usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1, totalTokenCount: 2 },
+        }),
+      } as any;
+    });
+
+    await provider.chatCompletion(
+      'test-key',
+      [{ role: 'user', content: 'Run tool' }],
+      'gemini-2.5-flash',
+      {
+        tools: [{
+          type: 'function',
+          function: {
+            name: 'grep',
+            description: 'Search files',
+            parameters: {
+              type: 'object',
+              additionalProperties: false,
+              strict: true,
+              properties: {
+                pattern: { type: 'string', additionalProperties: false },
+              },
+              required: ['pattern'],
+            },
+          },
+        }],
+      },
+    );
+
+    const params = capturedBody.tools[0].functionDeclarations[0].parameters;
+    expect(params).not.toHaveProperty('additionalProperties');
+    expect(params).not.toHaveProperty('strict');
+    expect(params.properties.pattern).not.toHaveProperty('additionalProperties');
+  });
+
   it('should translate Gemini functionCall response to OpenAI tool_calls', async () => {
     vi.spyOn(global, 'fetch').mockResolvedValueOnce({
       ok: true,
@@ -264,6 +307,69 @@ describe('GoogleProvider', () => {
     const assistantEntry = capturedBody.contents.find((c: any) => c.role === 'model');
     expect(assistantEntry.parts[0].thoughtSignature).toBe('sig_123');
     expect(assistantEntry.parts[0].functionCall.name).toBe('get_weather');
+    expect(assistantEntry.parts[0].functionCall.id).toBeUndefined();
+
+    const toolEntry = capturedBody.contents.find((c: any) =>
+      c.parts?.some((p: any) => p.functionResponse),
+    );
+    expect(toolEntry.parts[0].functionResponse.name).toBe('get_weather');
+    expect(toolEntry.parts[0].functionResponse.id).toBeUndefined();
+  });
+
+  it('should send image and tool history without unsupported Gemini fields', async () => {
+    let capturedBody: any;
+    vi.spyOn(global, 'fetch').mockImplementation(async (_url, init) => {
+      capturedBody = JSON.parse((init as any).body);
+      return {
+        ok: true,
+        json: () => Promise.resolve({
+          candidates: [{ content: { parts: [{ text: 'ok' }] }, finishReason: 'STOP' }],
+          usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1, totalTokenCount: 2 },
+        }),
+      } as any;
+    });
+
+    await provider.chatCompletion(
+      'test-key',
+      [
+        { role: 'user', content: 'Earlier question' },
+        {
+          role: 'assistant',
+          content: null,
+          tool_calls: [{
+            id: 'call_img',
+            type: 'function',
+            function: { name: 'read_file', arguments: '{}' },
+          }],
+        },
+        { role: 'tool', tool_call_id: 'call_img', content: '{"ok":true}' },
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'What is in this image?' },
+            {
+              type: 'image_url',
+              image_url: { url: 'data:image/png;base64,abc123' },
+            },
+          ],
+        },
+      ],
+      'gemini-2.5-flash',
+    );
+
+    const userWithImage = capturedBody.contents.find((c: any) =>
+      c.parts?.some((p: any) => p.inlineData),
+    );
+    expect(userWithImage.parts).toEqual([
+      { text: 'What is in this image?' },
+      { inlineData: { mimeType: 'image/png', data: 'abc123' } },
+    ]);
+    for (const entry of capturedBody.contents) {
+      for (const part of entry.parts ?? []) {
+        expect(part.functionCall?.id).toBeUndefined();
+        expect(part.functionResponse?.id).toBeUndefined();
+      }
+    }
   });
 
   // ── Streaming ──────────────────────────────────────────────────────────────

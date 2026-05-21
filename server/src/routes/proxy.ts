@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import { z } from 'zod';
 import type { ChatMessage } from '@freellmapi/shared/types.js';
 import { getDb } from '../db/index.js';
+import { buildCodexModelCatalog } from '../lib/codex-model-catalog.js';
 import { authenticateProxyRequest } from '../lib/proxy-auth.js';
 import {
   openAIStreamHandlers,
@@ -28,6 +29,21 @@ proxyRouter.get('/models', (_req: Request, res: Response) => {
   });
 });
 
+// Codex model_catalog.json shape (Codex does not list custom models from GET /v1/models alone)
+proxyRouter.get('/codex/model-catalog', (_req: Request, res: Response) => {
+  const db = getDb();
+  const rows = db.prepare(`
+    SELECT model_id, display_name, context_window, requires_vision
+    FROM models WHERE enabled = 1 ORDER BY intelligence_rank
+  `).all() as Array<{
+    model_id: string;
+    display_name: string;
+    context_window: number | null;
+    requires_vision: number;
+  }>;
+  res.json(buildCodexModelCatalog(rows));
+});
+
 const toolCallSchema = z.object({
   id: z.string().min(1),
   type: z.literal('function'),
@@ -50,7 +66,7 @@ const chatContentPartSchema = z.union([
     type: z.literal('image_url'),
     image_url: z.object({
       url: z.string().min(1),
-      detail: z.enum(['auto', 'low', 'high']).optional(),
+      detail: z.enum(['auto', 'low', 'high', 'original']).optional(),
     }),
   }),
 ]);

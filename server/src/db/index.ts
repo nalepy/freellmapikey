@@ -46,6 +46,7 @@ export function initDb(dbPath?: string): Database.Database {
   migrateModelsV9(db);
   migrateModelsV10(db);
   migrateModelsV11(db);
+  migrateSchemaV12(db);
   ensureUnifiedKey(db);
 
   console.log(`Database initialized at ${resolvedPath}`);
@@ -68,6 +69,7 @@ function createTables(db: Database.Database) {
       tpd_limit INTEGER,
       monthly_token_budget TEXT NOT NULL DEFAULT '',
       context_window INTEGER,
+      requires_vision INTEGER NOT NULL DEFAULT 0,
       enabled INTEGER NOT NULL DEFAULT 1,
       UNIQUE(platform, model_id)
     );
@@ -951,6 +953,47 @@ function migrateModelsV11(db: Database.Database) {
     }
   });
   apply();
+}
+
+function tableHasColumn(db: Database.Database, table: string, column: string): boolean {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+  return cols.some(c => c.name === column);
+}
+
+/** models.requires_vision + error_logs columns added after first deploy. */
+function migrateSchemaV12(db: Database.Database) {
+  if (!tableHasColumn(db, 'models', 'requires_vision')) {
+    db.exec('ALTER TABLE models ADD COLUMN requires_vision INTEGER NOT NULL DEFAULT 0');
+    db.prepare(`
+      UPDATE models SET requires_vision = 1
+      WHERE platform = 'google'
+         OR LOWER(model_id) LIKE '%maverick%'
+         OR LOWER(model_id) LIKE '%scout%'
+         OR LOWER(model_id) LIKE '%4v%'
+         OR LOWER(model_id) LIKE '%vision%'
+         OR LOWER(display_name) LIKE '%vision%'
+    `).run();
+  }
+
+  const errorLogCols: Array<[string, string]> = [
+    ['requires_vision', 'INTEGER NOT NULL DEFAULT 0'],
+    ['has_images', 'INTEGER NOT NULL DEFAULT 0'],
+    ['stream', 'INTEGER NOT NULL DEFAULT 0'],
+    ['message_count', 'INTEGER'],
+    ['estimated_input_tokens', 'INTEGER'],
+    ['latency_ms', 'INTEGER'],
+    ['error_category', 'TEXT'],
+    ['error_detail', 'TEXT'],
+  ];
+  const errorLogInfo = db.prepare('PRAGMA table_info(error_logs)').all() as { name: string }[];
+  if (errorLogInfo.length > 0) {
+    const names = new Set(errorLogInfo.map(c => c.name));
+    for (const [col, def] of errorLogCols) {
+      if (!names.has(col)) {
+        db.exec(`ALTER TABLE error_logs ADD COLUMN ${col} ${def}`);
+      }
+    }
+  }
 }
 
 function ensureUnifiedKey(db: Database.Database) {

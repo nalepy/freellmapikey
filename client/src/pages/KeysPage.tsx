@@ -90,9 +90,9 @@ function UnifiedKeySection() {
         <div>
           <h2 className="text-sm font-medium">Your unified API key</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            One key for OpenAI SDK, Claude Code, and OpenAI Codex. Use it as{' '}
-            <code className="font-mono">api_key</code>, <code className="font-mono">ANTHROPIC_API_KEY</code>, or Codex{' '}
-            <code className="font-mono">CUSTOM_API_KEY</code>.
+            One key for OpenAI SDK, Claude Code, and OpenAI Codex — including vision (images in Codex and multimodal chat).
+            Use it as <code className="font-mono">api_key</code>, <code className="font-mono">ANTHROPIC_API_KEY</code>, or
+            Codex <code className="font-mono">CUSTOM_API_KEY</code>.
           </p>
         </div>
         <Button
@@ -207,7 +207,7 @@ export default function KeysPage() {
     <div>
       <PageHeader
         title="Keys"
-        description="Provider keys, unified API key, and setup for OpenAI SDK, Claude Code, and OpenAI Codex."
+        description="Provider keys, unified API key, and setup for OpenAI SDK, Claude Code, and Codex — text and vision (images)."
         actions={
           keys.length > 0 && (
             <Button variant="outline" size="sm" onClick={() => checkAll.mutate()} disabled={checkAll.isPending}>

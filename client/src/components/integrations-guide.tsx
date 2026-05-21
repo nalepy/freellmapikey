@@ -1,4 +1,7 @@
 import type { ReactNode } from 'react'
+import { useMutation } from '@tanstack/react-query'
+import { Button } from '@/components/ui/button'
+import { apiFetch } from '@/lib/api'
 import { getOpenAiBaseUrl, getProxyOrigin } from '@/lib/proxy-url'
 
 /** Shown in setup snippets only — never the real key from the API. */
@@ -48,14 +51,32 @@ export function IntegrationsGuide() {
     ? '%USERPROFILE%\\.codex\\config.toml'
     : '~/.codex/config.toml'
 
+  const codexCatalogPath = isWindows
+    ? '%USERPROFILE%\\.codex\\freellmapi-models.json'
+    : '~/.codex/freellmapi-models.json'
+
+  const codexCatalogPathToml = isWindows
+    ? 'C:\\\\Users\\\\<you>\\\\.codex\\\\freellmapi-models.json'
+    : '/Users/<you>/.codex/freellmapi-models.json'
+
+  const syncCatalog = useMutation({
+    mutationFn: () => apiFetch<{ path: string; modelCount: number; configSnippet: string }>(
+      '/api/codex/sync-catalog',
+      { method: 'POST', body: '{}' },
+    ),
+  })
+
   const codexConfig = `model_provider = "freellmapi"
 model = "auto"
-wire_api = "responses"
+model_reasoning_effort = "medium"
+model_catalog_json = "${codexCatalogPathToml}"
 
 [model_providers.freellmapi]
-name = "freellmapi"
+name = "FreeLLMAPI (local)"
 base_url = "${openAiBase}"
 env_key = "CUSTOM_API_KEY"
+wire_api = "responses"
+requires_openai_auth = false
 
 # Windows only — if Codex shows "Couldn't set up admin sandbox":
 sandbox_mode = "danger-full-access"
@@ -72,10 +93,11 @@ network_access = true`
       <div>
         <h2 className="text-sm font-medium">Claude Code &amp; OpenAI Codex</h2>
         <p className="text-xs text-muted-foreground mt-0.5">
-          This build adds Anthropic Messages (<code className="font-mono">/v1/messages</code>) for Claude Code and
-          OpenAI Responses (<code className="font-mono">/v1/responses</code>) for Codex, on top of Chat Completions.
-          Add provider keys above, then paste your unified key (from the section above) wherever you see{' '}
-          <code className="font-mono">{KEY_PLACEHOLDER}</code>.
+          Anthropic Messages (<code className="font-mono">/v1/messages</code>) for Claude Code, OpenAI Responses (
+          <code className="font-mono">/v1/responses</code>) for Codex, and Chat Completions for other clients — now with{' '}
+          vision: pasted images in Codex and image parts in chat
+          requests are routed to vision-capable models (Gemini, Llama 4, etc.). Add provider keys above, then paste your
+          unified key wherever you see <code className="font-mono">{KEY_PLACEHOLDER}</code>.
         </p>
       </div>
 
@@ -104,7 +126,7 @@ claude`}</CodeBlock>
 
       <IntegrationCard
         title="OpenAI Codex"
-        subtitle="CLI or Desktop — Responses wire protocol via a custom provider"
+        subtitle="CLI or Desktop — Responses API, including pasted images (vision)"
       >
         <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
           <li>Start FreeLLMAPI and add provider keys.</li>
@@ -116,11 +138,54 @@ claude`}</CodeBlock>
         <CodeBlock>{isWindows
           ? `set CUSTOM_API_KEY=${KEY_PLACEHOLDER}`
           : `export CUSTOM_API_KEY="${KEY_PLACEHOLDER}"`}</CodeBlock>
-        <p className="text-xs font-medium text-foreground">config.toml (minimal)</p>
+        <p className="text-xs font-medium text-foreground">Model catalog (required for model names in Codex)</p>
+        <p className="text-xs text-muted-foreground">
+          Codex does not read <code className="font-mono">GET /v1/models</code> for custom providers. It only shows
+          Intelligence (Low / Medium / High) until you point <code className="font-mono">model_catalog_json</code> at a
+          file with your FreeLLMAPI models. Regenerate that file after you add keys or change the fallback chain.
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={syncCatalog.isPending}
+            onClick={() => syncCatalog.mutate()}
+          >
+            {syncCatalog.isPending ? 'Writing catalog…' : 'Write Codex model catalog'}
+          </Button>
+          {syncCatalog.isSuccess && (
+            <span className="text-xs text-muted-foreground">
+              Wrote {syncCatalog.data.modelCount} models to {syncCatalog.data.path}
+            </span>
+          )}
+          {syncCatalog.isError && (
+            <span className="text-xs text-destructive">Could not write catalog — is the server running?</span>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Default path: <code className="font-mono">{codexCatalogPath}</code>. CLI alternative:{' '}
+          <code className="font-mono">npm run codex:model-catalog</code>
+        </p>
+        <p className="text-xs font-medium text-foreground">config.toml</p>
         <CodeBlock>{codexConfig}</CodeBlock>
         <p className="text-xs text-muted-foreground">
-          Use <code className="font-mono">model = "auto"</code> to follow your Fallback chain order without changing the picker each session.
-          Optional: run <code className="font-mono">npm run codex:model-catalog</code> from the repo to refresh the Codex model list after adding keys.
+          Set <code className="font-mono">model = "auto"</code> (not <code className="font-mono">gpt-5.3-codex</code>) so
+          routing uses your fallback chain. To pin one backend, use a catalog slug such as{' '}
+          <code className="font-mono">gemini-2.5-flash</code>. The Intelligence menu only changes reasoning depth, not which
+          FreeLLMAPI model runs. <code className="font-mono">FreeLLMAPI (local)</code> is a label when you have a single
+          provider — it is not a second menu. Restart Codex after editing config. Codex Desktop may still hide custom
+          models in the picker (
+          <a
+            href="https://github.com/openai/codex/issues/19694"
+            className="underline"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            known issue
+          </a>
+          ); set <code className="font-mono">model</code> in TOML or use the CLI{' '}
+          <code className="font-mono">codex -c model=auto</code>.
         </p>
       </IntegrationCard>
 

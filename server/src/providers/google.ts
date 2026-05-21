@@ -8,6 +8,7 @@ import type {
   ChatToolDefinition,
   TokenUsage,
 } from '@freellmapi/shared/types.js';
+import { sanitizeGeminiParametersSchema } from '../lib/gemini-schema.js';
 import { parseDataUrl, textFromMessageContent } from '../lib/message-content.js';
 import { BaseProvider, type CompletionOptions } from './base.js';
 
@@ -78,7 +79,7 @@ function toGeminiTools(tools?: ChatToolDefinition[]): Array<{ functionDeclaratio
     functionDeclarations: tools.map(t => ({
       name: t.function.name,
       description: t.function.description,
-      parameters: t.function.parameters,
+      parameters: sanitizeGeminiParametersSchema(t.function.parameters),
     })),
   }];
 }
@@ -152,14 +153,15 @@ function toGeminiContents(messages: ChatMessage[]) {
         }
 
         for (const call of m.tool_calls ?? []) {
-          parts.push({
-            thoughtSignature: call.thought_signature,
-            functionCall: {
-              id: call.id,
-              name: call.function.name,
-              args: safeParseObject(call.function.arguments),
-            },
-          });
+          const functionCall: GeminiPart['functionCall'] = {
+            name: call.function.name,
+            args: safeParseObject(call.function.arguments),
+          };
+          const part: GeminiPart = { functionCall };
+          if (call.thought_signature) {
+            part.thoughtSignature = call.thought_signature;
+          }
+          parts.push(part);
         }
 
         if (parts.length === 0) return null;
@@ -180,7 +182,6 @@ function toGeminiContents(messages: ChatMessage[]) {
           role: 'user',
           parts: [{
             functionResponse: {
-              id: toolCallId,
               name: toolName,
               response,
             },

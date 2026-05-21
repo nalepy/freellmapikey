@@ -342,7 +342,7 @@ export default function FallbackPage() {
         description={
           visionOnlyRouting
             ? 'Vision-only mode is on: all API traffic (Codex, Claude Code, playground) uses only vision-capable models below.'
-            : 'Drag to reorder. Requests try models top-to-bottom until one succeeds.'
+            : 'Drag to reorder. Requests try models top-to-bottom until one succeeds. Requests with images use vision-capable models automatically.'
         }
         actions={
           <>
@@ -375,13 +375,6 @@ export default function FallbackPage() {
               No models available. Add API keys on the <a href="/keys" className="underline text-foreground">Keys page</a> first.
             </p>
           </div>
-        ) : displayEntries.length === 0 ? (
-          <div className="rounded-lg border border-dashed p-8 text-center">
-            <p className="text-sm text-muted-foreground">
-              Vision-only routing is on, but no vision-capable models have keys. Add a Google or Llama 4 key on the{' '}
-              <a href="/keys" className="underline text-foreground">Keys page</a>, or switch routing to All models.
-            </p>
-          </div>
         ) : (
           <>
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -409,37 +402,48 @@ export default function FallbackPage() {
               </p>
             </div>
 
-            <div className="rounded-lg border divide-y overflow-hidden">
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={handleDragEnd}
-              >
-                <SortableContext
-                  items={displayEntries.map(e => e.modelDbId)}
-                  strategy={verticalListSortingStrategy}
-                >
-                  {displayEntries.map((entry, index) => (
-                    <SortableModelRow
-                      key={entry.modelDbId}
-                      entry={entry}
-                      index={index}
-                      onToggle={handleToggle}
-                    />
-                  ))}
-                </SortableContext>
-              </DndContext>
-            </div>
-
-            {hasChanges && (
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" size="sm" onClick={() => setLocalEntries(null)}>
-                  Discard
-                </Button>
-                <Button size="sm" onClick={handleSave} disabled={saveMutation.isPending}>
-                  {saveMutation.isPending ? 'Saving…' : 'Save order'}
-                </Button>
+            {displayEntries.length === 0 ? (
+              <div className="rounded-lg border border-dashed p-8 text-center">
+                <p className="text-sm text-muted-foreground">
+                  Vision-only routing is on, but no vision-capable models have keys. Add a Google or Llama 4 key on the{' '}
+                  <a href="/keys" className="underline text-foreground">Keys page</a>, or switch routing to All models above.
+                </p>
               </div>
+            ) : (
+              <>
+                <div className="rounded-lg border divide-y overflow-hidden">
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleDragEnd}
+                  >
+                    <SortableContext
+                      items={displayEntries.map(e => e.modelDbId)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      {displayEntries.map((entry, index) => (
+                        <SortableModelRow
+                          key={entry.modelDbId}
+                          entry={entry}
+                          index={index}
+                          onToggle={handleToggle}
+                        />
+                      ))}
+                    </SortableContext>
+                  </DndContext>
+                </div>
+
+                {hasChanges && (
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setLocalEntries(null)}>
+                      Discard
+                    </Button>
+                    <Button size="sm" onClick={handleSave} disabled={saveMutation.isPending}>
+                      {saveMutation.isPending ? 'Saving…' : 'Save order'}
+                    </Button>
+                  </div>
+                )}
+              </>
             )}
 
             {unconfiguredPlatforms.length > 0 && (
