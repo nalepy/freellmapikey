@@ -216,6 +216,45 @@ analyticsRouter.get('/error-distribution', (req: Request, res: Response) => {
   });
 });
 
+// Successful requests with timestamps (usage log)
+analyticsRouter.get('/usage-log', (req: Request, res: Response) => {
+  const range = (req.query.range as string) ?? '7d';
+  const limit = Math.min(Math.max(parseInt(String(req.query.limit ?? '100'), 10) || 100, 1), 500);
+  const since = getSinceTimestamp(range);
+  const db = getDb();
+
+  const rows = db.prepare(`
+    SELECT
+      r.id,
+      r.platform,
+      r.model_id,
+      m.display_name,
+      r.input_tokens,
+      r.output_tokens,
+      r.latency_ms,
+      r.created_at
+    FROM requests r
+    LEFT JOIN models m ON m.platform = r.platform AND m.model_id = r.model_id
+    WHERE r.status = 'success' AND r.created_at >= ?
+    ORDER BY r.created_at DESC
+    LIMIT ?
+  `).all(since, limit) as any[];
+
+  res.json({
+    entries: rows.map(r => ({
+      id: r.id,
+      createdAt: r.created_at,
+      platform: r.platform,
+      modelId: r.model_id,
+      displayName: r.display_name ?? r.model_id,
+      supportsVision: modelSupportsVision(r.platform, r.model_id),
+      inputTokens: r.input_tokens ?? 0,
+      outputTokens: r.output_tokens ?? 0,
+      latencyMs: r.latency_ms ?? 0,
+    })),
+  });
+});
+
 // Recent errors
 analyticsRouter.get('/errors', (req: Request, res: Response) => {
   const range = (req.query.range as string) ?? '7d';

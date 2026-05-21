@@ -112,6 +112,11 @@ export default function AnalyticsPage() {
     queryFn: () => apiFetch<{ visionOnlyRouting: boolean }>('/api/fallback'),
   })
 
+  const { data: usageLog } = useQuery({
+    queryKey: ['analytics', 'usage-log', range],
+    queryFn: () => apiFetch<{ entries: any[] }>(`/api/analytics/usage-log?range=${range}&limit=100`),
+  })
+
   const { data: errorLog } = useQuery({
     queryKey: ['analytics', 'error-log', range],
     queryFn: () => apiFetch<{ filePath: string; entries: any[] }>(`/api/analytics/error-log?range=${range}&limit=100`),
@@ -333,6 +338,56 @@ export default function AnalyticsPage() {
             )}
           </Panel>
         </div>
+
+        <Panel title="Usage log">
+          <p className="text-xs text-muted-foreground mb-3">
+            Each successful routed request in the selected range ({range}), newest first. Use this to confirm when
+            Claude Code, Codex, or other clients hit the proxy and which provider/model served the call.
+            Cleared when you reset analytics.
+          </p>
+          {!usageLog?.entries?.length ? (
+            <p className="text-sm text-muted-foreground text-center py-8">No successful requests yet</p>
+          ) : (
+            <div className="max-h-[420px] overflow-y-auto -mx-4">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="pl-4">Time</TableHead>
+                    <TableHead>Model</TableHead>
+                    <TableHead>Provider</TableHead>
+                    <TableHead>Vision</TableHead>
+                    <TableHead className="text-right">In</TableHead>
+                    <TableHead className="text-right">Out</TableHead>
+                    <TableHead className="text-right pr-4">Latency</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {usageLog.entries.map((e: any) => (
+                    <TableRow key={e.id}>
+                      <TableCell className="pl-4 text-xs text-muted-foreground whitespace-nowrap">
+                        {formatLocalDateTime(e.createdAt)}
+                      </TableCell>
+                      <TableCell className="text-xs font-medium">{e.displayName}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{e.platform}</TableCell>
+                      <TableCell className="text-xs">
+                        {e.supportsVision ? (
+                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-normal">
+                            Yes
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right text-xs tabular-nums">{formatTokens(e.inputTokens)}</TableCell>
+                      <TableCell className="text-right text-xs tabular-nums">{formatTokens(e.outputTokens)}</TableCell>
+                      <TableCell className="text-right text-xs tabular-nums pr-4">{e.latencyMs} ms</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </Panel>
 
         <Panel title="Error log (debug)">
           <p className="text-xs text-muted-foreground mb-3">

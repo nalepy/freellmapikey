@@ -103,24 +103,62 @@ network_access = true`
 
       <IntegrationCard
         title="Claude Code"
-        subtitle="Anthropic-shaped API — use your freellmapi key, not an Anthropic account key"
+        subtitle="Desktop app (Code tab) or CLI — Anthropic-shaped API; freellmapi key, not an Anthropic account key"
       >
         <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
-          <li>Add Groq, Google, or other provider keys on this page.</li>
+          <li>Add Groq, Google, or other provider keys on this page (include Google or Llama 4 if you use images).</li>
           <li>Copy the unified key from the section above.</li>
-          <li>Set environment variables before starting Claude Code (terminal where you run <code className="font-mono">claude</code>).</li>
+          <li>
+            Point Claude Code at this server (see <strong>Desktop app</strong> below — preferred on Windows — or CLI).
+          </li>
         </ol>
-        <p className="text-xs font-medium text-foreground">macOS / Linux</p>
+        <p className="text-xs font-medium text-foreground">Claude Desktop app (Code tab) — Windows / macOS</p>
+        <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
+          <li>
+            Open the <strong>Claude</strong> desktop app → <strong>Code</strong> tab (not the main Chat tab).
+          </li>
+          <li>
+            In the prompt box, open the <strong>environment</strong> dropdown and choose <strong>Local</strong> (not Remote —
+            Remote always uses Anthropic&apos;s cloud and ignores your local proxy).
+          </li>
+          <li>
+            Hover <strong>Local</strong> → click the <strong>gear</strong> → add:
+            <code className="font-mono"> ANTHROPIC_BASE_URL</code> = <code className="font-mono">{origin}</code> and{' '}
+            <code className="font-mono">ANTHROPIC_API_KEY</code> = your unified key. Save.
+          </li>
+          <li>
+            Alternatively (same effect for Code sessions), put those variables in{' '}
+            <code className="font-mono">%USERPROFILE%\.claude\settings.json</code> under an{' '}
+            <code className="font-mono">env</code> object — Desktop shares this file with the CLI.
+          </li>
+          <li>
+            Fully quit and reopen the Claude app after changing env (tray icon → Exit, then start again).
+          </li>
+          <li>
+            Start a new local session in your project folder and send a short test message. In FreeLLMAPI{' '}
+            <strong>Analytics → Usage log</strong> you should see a new row with a timestamp and the provider/model that
+            served the call (or check response headers for <code className="font-mono">X-Routed-Via</code>, e.g. Google/Gemini).
+          </li>
+        </ol>
+        <p className="text-xs text-muted-foreground">
+          If you still see Anthropic billing or <code className="font-mono">api.anthropic.com</code> traffic, the session is
+          probably <strong>Remote</strong> or an old env override (e.g. DeepSeek) is still set in Windows user env — remove
+          conflicting <code className="font-mono">ANTHROPIC_BASE_URL</code> values outside FreeLLMAPI.
+        </p>
+        <p className="text-xs font-medium text-foreground">CLI (optional)</p>
+        <p className="text-xs text-muted-foreground">macOS / Linux</p>
         <CodeBlock>{`export ANTHROPIC_BASE_URL="${origin}"
 export ANTHROPIC_API_KEY="${KEY_PLACEHOLDER}"
 claude`}</CodeBlock>
-        <p className="text-xs font-medium text-foreground">Windows (PowerShell)</p>
+        <p className="text-xs text-muted-foreground">Windows (PowerShell)</p>
         <CodeBlock>{`$env:ANTHROPIC_BASE_URL = "${origin}"
 $env:ANTHROPIC_API_KEY = "${KEY_PLACEHOLDER}"
 claude`}</CodeBlock>
         <p className="text-xs text-muted-foreground">
-          Endpoint: <code className="font-mono">POST /v1/messages</code>. Model names like{' '}
+          Endpoints: <code className="font-mono">POST /v1/messages</code> and{' '}
+          <code className="font-mono">POST /v1/messages/count_tokens</code>. Model names like{' '}
           <code className="font-mono">claude-sonnet-4-…</code> are labels — the proxy auto-routes through your fallback chain.
+          Image blocks in messages use the same vision routing as Codex (vision-capable models only when images are present).
         </p>
       </IntegrationCard>
 
@@ -138,11 +176,18 @@ claude`}</CodeBlock>
         <CodeBlock>{isWindows
           ? `set CUSTOM_API_KEY=${KEY_PLACEHOLDER}`
           : `export CUSTOM_API_KEY="${KEY_PLACEHOLDER}"`}</CodeBlock>
-        <p className="text-xs font-medium text-foreground">Model catalog (required for model names in Codex)</p>
         <p className="text-xs text-muted-foreground">
-          Codex does not read <code className="font-mono">GET /v1/models</code> for custom providers. It only shows
-          Intelligence (Low / Medium / High) until you point <code className="font-mono">model_catalog_json</code> at a
-          file with your FreeLLMAPI models. Regenerate that file after you add keys or change the fallback chain.
+          Requests from <code className="font-mono">127.0.0.1</code> may work without a bearer key, but setting{' '}
+          <code className="font-mono">CUSTOM_API_KEY</code> is still recommended.
+        </p>
+        <p className="text-xs font-medium text-foreground">Model catalog (optional)</p>
+        <p className="text-xs text-muted-foreground">
+          Not required for <code className="font-mono">model = "auto"</code> — routing uses your fallback chain either way.
+          Codex does not read <code className="font-mono">GET /v1/models</code> for custom providers; use{' '}
+          <code className="font-mono">model_catalog_json</code> when you want catalog slugs (e.g.{' '}
+          <code className="font-mono">gemini-2.5-flash</code>) in config or CLI. The Desktop UI usually still shows only
+          Intelligence (Low / Medium / High). Regenerate the catalog after you add keys or change the fallback chain.
+          Server endpoint: <code className="font-mono">GET /v1/codex/model-catalog</code>.
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <Button

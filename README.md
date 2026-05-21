@@ -75,7 +75,7 @@ The problem is that stacking them by hand is painful: fourteen different SDKs, f
 - **Unified API key** — Clients authenticate to your proxy with a single `freellmapi-…` bearer token. You never expose upstream provider keys to your apps.
 - **Health checks** — Periodic probes mark keys as `healthy`, `rate_limited`, `invalid`, or `error` so the router skips dead ones automatically.
 - **Admin dashboard** — React + Vite UI to manage keys, reorder the fallback chain, inspect analytics, and run prompts in a playground. Dark mode included.
-- **Analytics** — Per-request logging with latency, token counts, success rate, and per-provider breakdowns.
+- **Analytics** — Per-request logging with latency, token counts, success rate, per-provider breakdowns, a **usage log** (timestamped successful routes), and a persistent **error log** for failures.
 - **Deploys to a Raspberry Pi** — Runs happily on a Pi 4 under PM2 behind nginx. ~40 MB RSS at idle.
 
 ## Not yet supported
@@ -373,6 +373,11 @@ Send a chat completion through the router and see which provider served it, with
 ### Analytics
 
 Request volume, success rate, tokens in and out, average latency, and per-provider breakdowns over 24h / 7d / 30d windows.
+
+- **Usage log** — Scrollable table of each **successful** routed request (newest first): local timestamp, provider, model, vision flag, input/output tokens, and latency. Use it to confirm Claude Code, Codex, or other clients are hitting the proxy and which backend served the call. Cleared when you **Reset analytics**.
+- **Error log (debug)** — Detailed failure rows (endpoint, retry, vision flags, full message) plus `server/data/error.log`. Kept when you reset analytics so you can still debug.
+
+API: `GET /api/analytics/usage-log?range=7d&limit=100` (same `range` as other analytics endpoints: `24h`, `7d`, `30d`).
 
 ![Analytics page](repo-assets/analytics.png)
 
