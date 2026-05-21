@@ -70,11 +70,7 @@ export function IntegrationsGuide() {
     ? '%USERPROFILE%\\.continue\\config.yaml'
     : '~/.continue/config.yaml'
 
-  const continueConfig = `name: FreeLLMAPI (local)
-version: 1.0.0
-schema: v1
-models:
-  - name: FreeLLMAPI
+  const continueModelEntry = `  - name: FreeLLMAPI
     provider: openai
     model: auto
     apiBase: ${openAiBase}
@@ -88,6 +84,12 @@ models:
     defaultCompletionOptions:
       temperature: 0.7
       maxTokens: 4096`
+
+  const continueConfigFull = `name: FreeLLMAPI (local)
+version: 1.0.0
+schema: v1
+models:
+${continueModelEntry}`
 
   const codexConfig = `model_provider = "freellmapi"
 model = "auto"
@@ -293,12 +295,29 @@ claude`}</CodeBlock>
             <code className="font-mono">{continueConfigPath}</code> directly.
           </li>
           <li>
-            Paste the YAML below, replace <code className="font-mono">{KEY_PLACEHOLDER}</code>, save, then reload the VS
-            Code window if the model does not appear (<code className="font-mono">Developer: Reload Window</code>).
+            Add FreeLLMAPI using one of the YAML blocks below (replace{' '}
+            <code className="font-mono">{KEY_PLACEHOLDER}</code>), save, then reload the VS Code window if the model does
+            not appear (<code className="font-mono">Developer: Reload Window</code>).
+          </li>
+          <li>
+            In Continue, pick <strong>FreeLLMAPI</strong> from the model/config dropdown before chatting.
           </li>
         </ol>
-        <p className="text-xs font-medium text-foreground">config.yaml</p>
-        <CodeBlock>{continueConfig}</CodeBlock>
+        <div
+          className="rounded-md border border-blue-500/40 bg-blue-500/10 px-3 py-2 text-xs text-foreground"
+          role="note"
+        >
+          <strong>Already have a config?</strong> Do not replace the whole file. Keep your existing{' '}
+          <code className="font-mono">name</code>, <code className="font-mono">version</code>,{' '}
+          <code className="font-mono">schema</code>, <code className="font-mono">context</code>, and other{' '}
+          <code className="font-mono">models</code> entries — append one new list item under{' '}
+          <code className="font-mono">models:</code> (there must be only one <code className="font-mono">models:</code>{' '}
+          key). Replace the entire file only if you want FreeLLMAPI as your sole model.
+        </div>
+        <p className="text-xs font-medium text-foreground">Existing config — append under models:</p>
+        <CodeBlock>{continueModelEntry}</CodeBlock>
+        <p className="text-xs font-medium text-foreground">New install — full config.yaml:</p>
+        <CodeBlock>{continueConfigFull}</CodeBlock>
         <p className="text-xs text-muted-foreground">
           <code className="font-mono">apiBase</code> must end with <code className="font-mono">/v1</code> (same as the
           OpenAI SDK <code className="font-mono">base_url</code>). Use <code className="font-mono">model: auto</code> to

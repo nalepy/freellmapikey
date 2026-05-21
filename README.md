@@ -277,7 +277,30 @@ The [Continue](https://marketplace.visualstudio.com/items?itemName=Continue.cont
 3. Edit Continue config: VS Code → Continue chat → configs dropdown (top right) → cog beside **Local Config**, or open the file directly:
    - Windows: `%USERPROFILE%\.continue\config.yaml`
    - macOS / Linux: `~/.continue/config.yaml`
-4. Paste a model entry like the example below, save, and reload the VS Code window if the model does not appear (`Developer: Reload Window`).
+4. Add FreeLLMAPI to `config.yaml` (see below), save, and reload the VS Code window if the model does not appear (`Developer: Reload Window`). Select **FreeLLMAPI** in Continue’s model/config dropdown before chatting.
+
+**Already have a Continue config?** Do **not** replace the whole file. Keep your existing top-level `name`, `version`, `schema`, `context`, `rules`, and other `models` entries. Append **one new list item** under `models:` (there must be only one `models:` key in the file). Replace the entire file only if you want FreeLLMAPI as your sole model.
+
+*Existing config — append under `models:`:*
+
+```yaml
+  - name: FreeLLMAPI
+    provider: openai
+    model: auto
+    apiBase: http://localhost:3001/v1
+    apiKey: freellmapi-your-unified-key-from-dashboard
+    roles:
+      - chat
+      - edit
+      - apply
+    capabilities:
+      - tool_use
+    defaultCompletionOptions:
+      temperature: 0.7
+      maxTokens: 4096
+```
+
+*New install — full `config.yaml`:*
 
 ```yaml
 name: FreeLLMAPI (local)
