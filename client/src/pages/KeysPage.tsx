@@ -90,8 +90,9 @@ function UnifiedKeySection() {
         <div>
           <h2 className="text-sm font-medium">Your unified API key</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            One key for OpenAI SDK, Claude Code, and OpenAI Codex — including vision (images in Codex and multimodal chat).
-            Use it as <code className="font-mono">api_key</code>, <code className="font-mono">ANTHROPIC_API_KEY</code>, or
+            One key for OpenAI SDK, Claude Code <strong>CLI</strong>, and OpenAI Codex — including vision (images in Codex
+            and multimodal chat). Use it as <code className="font-mono">api_key</code>,{' '}
+            <code className="font-mono">ANTHROPIC_API_KEY</code> (terminal <code className="font-mono">claude</code> only), or
             Codex <code className="font-mono">CUSTOM_API_KEY</code>.
           </p>
         </div>
@@ -122,7 +123,7 @@ function UnifiedKeySection() {
         <code className="font-mono">{baseUrl}</code>
         <span className="text-muted-foreground">Endpoints</span>
         <span className="font-mono text-[11px] leading-relaxed">
-          /v1/chat/completions · /v1/messages (Claude Code) · /v1/responses (Codex)
+          /v1/chat/completions · /v1/messages (Claude CLI) · /v1/responses (Codex)
         </span>
       </div>
     </section>
@@ -207,7 +208,7 @@ export default function KeysPage() {
     <div>
       <PageHeader
         title="Keys"
-        description="Provider keys, unified API key, and setup for OpenAI SDK, Claude Code, and Codex — text and vision (images)."
+        description="Provider keys, unified API key, and setup for OpenAI SDK, Claude Code CLI (terminal), and Codex — text and vision (images)."
         actions={
           keys.length > 0 && (
             <Button variant="outline" size="sm" onClick={() => checkAll.mutate()} disabled={checkAll.isPending}>

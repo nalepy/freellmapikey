@@ -91,9 +91,10 @@ network_access = true`
   return (
     <section className="space-y-3">
       <div>
-        <h2 className="text-sm font-medium">Claude Code &amp; OpenAI Codex</h2>
+        <h2 className="text-sm font-medium">Claude Code CLI &amp; OpenAI Codex</h2>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Anthropic Messages (<code className="font-mono">/v1/messages</code>) for Claude Code, OpenAI Responses (
+          Anthropic Messages (<code className="font-mono">/v1/messages</code>) for the <strong>Claude Code CLI</strong>{' '}
+          (terminal only — not the Claude Desktop Code tab), OpenAI Responses (
           <code className="font-mono">/v1/responses</code>) for Codex, and Chat Completions for other clients — now with{' '}
           vision: pasted images in Codex and image parts in chat
           requests are routed to vision-capable models (Gemini, Llama 4, etc.). Add provider keys above, then paste your
@@ -102,50 +103,24 @@ network_access = true`
       </div>
 
       <IntegrationCard
-        title="Claude Code"
-        subtitle="Desktop app (Code tab) or CLI — Anthropic-shaped API; freellmapi key, not an Anthropic account key"
+        title="Claude Code CLI"
+        subtitle="Terminal only — Anthropic-shaped API; freellmapi key, not an Anthropic account key"
       >
+        <div
+          className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-foreground"
+          role="note"
+        >
+          <strong>CLI only.</strong> FreeLLMAPI supports the <code className="font-mono">claude</code> command in a
+          terminal. The Claude Desktop app (Code tab, Local + gear) cannot set{' '}
+          <code className="font-mono">ANTHROPIC_BASE_URL</code> — Desktop shows it as managed and keeps routing to
+          Anthropic.
+        </div>
         <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
           <li>Add Groq, Google, or other provider keys on this page (include Google or Llama 4 if you use images).</li>
           <li>Copy the unified key from the section above.</li>
-          <li>
-            Point Claude Code at this server (see <strong>Desktop app</strong> below — preferred on Windows — or CLI).
-          </li>
+          <li>Run <code className="font-mono">claude</code> from a terminal with the env vars below (not from Claude Desktop).</li>
         </ol>
-        <p className="text-xs font-medium text-foreground">Claude Desktop app (Code tab) — Windows / macOS</p>
-        <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
-          <li>
-            Open the <strong>Claude</strong> desktop app → <strong>Code</strong> tab (not the main Chat tab).
-          </li>
-          <li>
-            In the prompt box, open the <strong>environment</strong> dropdown and choose <strong>Local</strong> (not Remote —
-            Remote always uses Anthropic&apos;s cloud and ignores your local proxy).
-          </li>
-          <li>
-            Hover <strong>Local</strong> → click the <strong>gear</strong> → add:
-            <code className="font-mono"> ANTHROPIC_BASE_URL</code> = <code className="font-mono">{origin}</code> and{' '}
-            <code className="font-mono">ANTHROPIC_API_KEY</code> = your unified key. Save.
-          </li>
-          <li>
-            Alternatively (same effect for Code sessions), put those variables in{' '}
-            <code className="font-mono">%USERPROFILE%\.claude\settings.json</code> under an{' '}
-            <code className="font-mono">env</code> object — Desktop shares this file with the CLI.
-          </li>
-          <li>
-            Fully quit and reopen the Claude app after changing env (tray icon → Exit, then start again).
-          </li>
-          <li>
-            Start a new local session in your project folder and send a short test message. In FreeLLMAPI{' '}
-            <strong>Analytics → Usage log</strong> you should see a new row with a timestamp and the provider/model that
-            served the call (or check response headers for <code className="font-mono">X-Routed-Via</code>, e.g. Google/Gemini).
-          </li>
-        </ol>
-        <p className="text-xs text-muted-foreground">
-          If you still see Anthropic billing or <code className="font-mono">api.anthropic.com</code> traffic, the session is
-          probably <strong>Remote</strong> or an old env override (e.g. DeepSeek) is still set in Windows user env — remove
-          conflicting <code className="font-mono">ANTHROPIC_BASE_URL</code> values outside FreeLLMAPI.
-        </p>
-        <p className="text-xs font-medium text-foreground">CLI (optional)</p>
+        <p className="text-xs font-medium text-foreground">Setup</p>
         <p className="text-xs text-muted-foreground">macOS / Linux</p>
         <CodeBlock>{`export ANTHROPIC_BASE_URL="${origin}"
 export ANTHROPIC_API_KEY="${KEY_PLACEHOLDER}"
@@ -153,12 +128,43 @@ claude`}</CodeBlock>
         <p className="text-xs text-muted-foreground">Windows (PowerShell)</p>
         <CodeBlock>{`$env:ANTHROPIC_BASE_URL = "${origin}"
 $env:ANTHROPIC_API_KEY = "${KEY_PLACEHOLDER}"
+cd C:\\path\\to\\your\\project
 claude`}</CodeBlock>
+        <p className="text-xs font-medium text-foreground">Optional: settings.json</p>
+        <p className="text-xs text-muted-foreground">
+          CLI also reads{' '}
+          <code className="font-mono">{isWindows ? '%USERPROFILE%\\.claude\\settings.json' : '~/.claude/settings.json'}</code>:
+        </p>
+        <CodeBlock>{`{
+  "env": {
+    "ANTHROPIC_BASE_URL": "${origin}",
+    "ANTHROPIC_API_KEY": "${KEY_PLACEHOLDER}"
+  }
+}`}</CodeBlock>
+        <p className="text-xs font-medium text-foreground">Auth conflict (claude.ai login)</p>
+        <p className="text-xs text-muted-foreground">
+          If you see a yellow warning that both a <strong>claude.ai token</strong> and{' '}
+          <code className="font-mono">ANTHROPIC_API_KEY</code> are set, type{' '}
+          <code className="font-mono">/logout</code> in the CLI, exit, set only the env vars above, and run{' '}
+          <code className="font-mono">claude</code> again. Test with{' '}
+          <code className="font-mono">Reply with exactly: FREELLMAPI-OK</code> — then confirm a new row in{' '}
+          <strong>Analytics → Usage log</strong>.
+        </p>
         <p className="text-xs text-muted-foreground">
           Endpoints: <code className="font-mono">POST /v1/messages</code> and{' '}
           <code className="font-mono">POST /v1/messages/count_tokens</code>. Model names like{' '}
           <code className="font-mono">claude-sonnet-4-…</code> are labels — the proxy auto-routes through your fallback chain.
           Image blocks in messages use the same vision routing as Codex (vision-capable models only when images are present).
+          After a message, check <strong>Analytics → Usage log</strong> for a new row (provider should be google/groq/cerebras, not
+          anthropic).
+        </p>
+        <p className="text-xs font-medium text-foreground">Not supported: Claude Desktop (Code tab)</p>
+        <p className="text-xs text-muted-foreground">
+          Even with <strong>Local</strong> selected, Pro/Max Desktop blocks{' '}
+          <code className="font-mono">ANTHROPIC_BASE_URL</code> in the environment editor (
+          <em>managed by Claude Desktop and cannot be overridden</em>). <code className="font-mono">settings.json</code> is
+          ignored for routing too — Usage log stays empty and traffic goes to <code className="font-mono">api.anthropic.com</code>.
+          Use Cursor or the CLI for FreeLLMAPI; use Desktop only for native Anthropic models and billing.
         </p>
       </IntegrationCard>
 

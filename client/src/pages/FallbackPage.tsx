@@ -341,7 +341,7 @@ export default function FallbackPage() {
         title="Fallback chain"
         description={
           visionOnlyRouting
-            ? 'Vision-only mode is on: all API traffic (Codex, Claude Code, playground) uses only vision-capable models below.'
+            ? 'Vision-only mode is on: all API traffic (Codex, Claude CLI, playground) uses only vision-capable models below.'
             : 'Drag to reorder. Requests try models top-to-bottom until one succeeds. Requests with images use vision-capable models automatically.'
         }
         actions={
