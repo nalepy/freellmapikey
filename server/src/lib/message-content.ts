@@ -19,6 +19,36 @@ export function textFromMessageContent(content: ChatMessage['content']): string 
     .join('');
 }
 
+/** Coerce provider stream deltas (string, segment arrays, reasoning fields) to plain text. */
+export function deltaContentToString(content: unknown): string {
+  if (typeof content === 'string') return content;
+  if (content == null) return '';
+
+  if (Array.isArray(content)) {
+    return content
+      .map(seg => {
+        if (typeof seg === 'string') return seg;
+        if (typeof seg === 'object' && seg !== null) {
+          const part = seg as Record<string, unknown>;
+          if (typeof part.text === 'string') return part.text;
+          if (typeof part.content === 'string') return part.content;
+        }
+        return '';
+      })
+      .join('');
+  }
+
+  if (typeof content === 'object') {
+    const part = content as Record<string, unknown>;
+    if (typeof part.text === 'string') return part.text;
+    if (typeof part.content === 'string') return part.content;
+    if (typeof part.reasoning_content === 'string') return part.reasoning_content;
+    if (typeof part.reasoning === 'string') return part.reasoning;
+  }
+
+  return '';
+}
+
 /** Rough token estimate for routing (text ≈ chars/4; images ≈ fixed budget). */
 export function estimateContentTokens(content: ChatMessage['content']): number {
   if (typeof content === 'string') return Math.ceil(content.length / 4);

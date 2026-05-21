@@ -125,4 +125,29 @@ describe('responses-compat', () => {
     expect(sse).toContain('event: response.output_text.delta');
     expect(sse).toContain('"delta":"x"');
   });
+
+  it('coerces object/array stream deltas to text (avoids [object Object])', () => {
+    const encoder = new ResponsesStreamEncoder({ input: 'Hi', model: 'auto' }, 'auto');
+    encoder.setInputTokens(1);
+
+    const deltas: string[] = [];
+    for (const event of encoder.encodeChunk({
+      id: 'chatcmpl-1',
+      object: 'chat.completion.chunk',
+      created: 1,
+      model: 'm',
+      choices: [{
+        index: 0,
+        delta: { content: [{ type: 'text', text: 'Hi' }] as unknown as string },
+        finish_reason: null,
+      }],
+    })) {
+      if (event.event === 'response.output_text.delta') {
+        deltas.push((event.data as { delta: string }).delta);
+      }
+    }
+
+    expect(deltas).toEqual(['Hi']);
+    expect(deltas.join('')).not.toContain('[object Object]');
+  });
 });

@@ -7,7 +7,7 @@ import type {
   ChatToolChoice,
   ChatToolDefinition,
 } from '@freellmapi/shared/types.js';
-import { estimateContentTokens } from './message-content.js';
+import { deltaContentToString, estimateContentTokens } from './message-content.js';
 import type { OpenAICompletionParams } from './anthropic-compat.js';
 
 // ---- OpenAI Responses API (subset for Codex / Responses wire clients) ----
@@ -446,7 +446,8 @@ export class ResponsesStreamEncoder {
     const delta = choice?.delta;
     if (!delta) return;
 
-    if (delta.content) {
+    const textDelta = deltaContentToString(delta.content);
+    if (textDelta.length > 0) {
       if (this.textOutputIndex === null) {
         this.textOutputIndex = this.nextOutputIndex++;
         this.textPartStarted = true;
@@ -476,8 +477,8 @@ export class ResponsesStreamEncoder {
         };
       }
 
-      this.accumulatedText += delta.content;
-      this.outputTokens += Math.ceil(delta.content.length / 4);
+      this.accumulatedText += textDelta;
+      this.outputTokens += Math.ceil(textDelta.length / 4);
       yield {
         event: 'response.output_text.delta',
         data: {
@@ -485,7 +486,7 @@ export class ResponsesStreamEncoder {
           item_id: this.messageId,
           output_index: this.textOutputIndex,
           content_index: 0,
-          delta: delta.content,
+          delta: textDelta,
         },
       };
     }

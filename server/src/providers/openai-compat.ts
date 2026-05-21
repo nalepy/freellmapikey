@@ -5,6 +5,7 @@ import type {
   Platform,
 } from '@freellmapi/shared/types.js';
 import { BaseProvider, type CompletionOptions } from './base.js';
+import { deltaContentToString } from '../lib/message-content.js';
 
 /**
  * Generic provider for platforms that use an OpenAI-compatible API.
@@ -125,7 +126,7 @@ export class OpenAICompatProvider extends BaseProvider {
         const data = trimmed.slice(6);
         if (data === '[DONE]') return;
         try {
-          yield JSON.parse(data) as ChatCompletionChunk;
+          yield normalizeStreamChunk(JSON.parse(data) as ChatCompletionChunk);
         } catch {
           // Skip malformed chunks
         }
@@ -158,6 +159,22 @@ export class OpenAICompatProvider extends BaseProvider {
  * Other providers (Mistral magistral-medium) return `message.content` as an
  * array of text segments instead of a string. Flatten to string.
  */
+function normalizeStreamChunk(chunk: ChatCompletionChunk): ChatCompletionChunk {
+  for (const choice of chunk.choices ?? []) {
+    const delta = choice.delta;
+    if (!delta || delta.content == null) continue;
+    if (typeof delta.content !== 'string') {
+      const text = deltaContentToString(delta.content);
+      if (text.length > 0) {
+        delta.content = text;
+      } else {
+        delete delta.content;
+      }
+    }
+  }
+  return chunk;
+}
+
 function normalizeChoices(data: ChatCompletionResponse): void {
   for (const choice of data.choices ?? []) {
     const msg = choice.message as ChatMessage & {
