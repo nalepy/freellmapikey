@@ -46,6 +46,8 @@ export function initDb(dbPath?: string): Database.Database {
   migrateModelsV9(db);
   migrateModelsV10(db);
   migrateModelsV11(db);
+  migrateModelsV13(db);
+  migrateModelsV14(db);
   migrateSchemaV12(db);
   ensureUnifiedKey(db);
 
@@ -937,6 +939,71 @@ function migrateModelsV11(db: Database.Database) {
     ['llm7',         'codestral-latest',                          'Codestral (LLM7)',              16, 8,  'Medium',   100, null, null, null, '~2-3M (100/hr)',  32000],
     ['llm7',         'ministral-8b-2512',                         'Ministral 8B (LLM7)',           28, 10, 'Small',    100, null, null, null, '~2-3M (100/hr)', 131072],
     ['llm7',         'GLM-4.6V-Flash',                            'GLM-4.6V Flash (LLM7)',         15, 9,  'Large',    100, null, null, null, '~2-3M (100/hr)', 131072],
+  ];
+
+  const apply = db.transaction(() => {
+    for (const a of additions) insert.run(...a);
+    const missing = db.prepare(`
+      SELECT m.id FROM models m
+      LEFT JOIN fallback_config f ON m.id = f.model_db_id
+      WHERE f.id IS NULL ORDER BY m.intelligence_rank ASC
+    `).all() as { id: number }[];
+    if (missing.length > 0) {
+      const maxPriority = (db.prepare('SELECT COALESCE(MAX(priority), 0) AS mx FROM fallback_config').get() as { mx: number }).mx;
+      const addFb = db.prepare('INSERT INTO fallback_config (model_db_id, priority, enabled) VALUES (?, ?, 1)');
+      for (let i = 0; i < missing.length; i++) addFb.run(missing[i].id, maxPriority + i + 1);
+    }
+  });
+  apply();
+}
+
+/**
+ * V13: Re-add Hugging Face via the Inference Providers OpenAI router
+ * (router.huggingface.co/v1). V4 removed the legacy Fireworks-route model
+ * (accounts/fireworks/...) because it returned tool calls as plain text.
+ * Catalog uses `{repo}:{provider}` ids documented on HF.
+ */
+function migrateModelsV13(db: Database.Database) {
+  const insert = db.prepare(`
+    INSERT OR IGNORE INTO models (platform, model_id, display_name, intelligence_rank, speed_rank, size_label, rpm_limit, rpd_limit, tpm_limit, tpd_limit, monthly_token_budget, context_window)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const additions: Array<[string, string, string, number, number, string, number | null, number | null, number | null, number | null, string, number | null]> = [
+    // HF monthly free inference credits (~$0.10/mo tier) — shared across models.
+    ['huggingface', 'openai/gpt-oss-20b:hf-inference',              'GPT-OSS 20B (HF)',           18, 10, 'Medium', null, null, null, null, '~1-3M (credits)', 131072],
+    ['huggingface', 'meta-llama/Meta-Llama-3.1-8B-Instruct:hf-inference', 'Llama 3.1 8B (HF)',     28, 10, 'Small',  null, null, null, null, '~1-3M (credits)', 131072],
+    ['huggingface', 'meta-llama/Meta-Llama-3.3-70B-Instruct:novita', 'Llama 3.3 70B (HF)',        17, 10, 'Medium', null, null, null, null, '~1-3M (credits)', 131072],
+  ];
+
+  const apply = db.transaction(() => {
+    for (const a of additions) insert.run(...a);
+    const missing = db.prepare(`
+      SELECT m.id FROM models m
+      LEFT JOIN fallback_config f ON m.id = f.model_db_id
+      WHERE f.id IS NULL ORDER BY m.intelligence_rank ASC
+    `).all() as { id: number }[];
+    if (missing.length > 0) {
+      const maxPriority = (db.prepare('SELECT COALESCE(MAX(priority), 0) AS mx FROM fallback_config').get() as { mx: number }).mx;
+      const addFb = db.prepare('INSERT INTO fallback_config (model_db_id, priority, enabled) VALUES (?, ?, 1)');
+      for (let i = 0; i < missing.length; i++) addFb.run(missing[i].id, maxPriority + i + 1);
+    }
+  });
+  apply();
+}
+
+/**
+ * V14: Together AI serverless (api.together.ai/v1). Prepaid credits — not a
+ * recurring free tier, but common signup/promo credits. Model ids from Together docs.
+ */
+function migrateModelsV14(db: Database.Database) {
+  const insert = db.prepare(`
+    INSERT OR IGNORE INTO models (platform, model_id, display_name, intelligence_rank, speed_rank, size_label, rpm_limit, rpd_limit, tpm_limit, tpd_limit, monthly_token_budget, context_window)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const additions: Array<[string, string, string, number, number, string, number | null, number | null, number | null, number | null, string, number | null]> = [
+    ['together', 'openai/gpt-oss-20b',                         'GPT-OSS 20B (Together)',        18, 8, 'Medium', null, null, null, null, '~promo credits', 128000],
+    ['together', 'meta-llama/Llama-3.3-70B-Instruct-Turbo',    'Llama 3.3 70B (Together)',      17, 8, 'Medium', null, null, null, null, '~promo credits', 131072],
+    ['together', 'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo', 'Llama 3.1 8B (Together)',     28, 8, 'Small',  null, null, null, null, '~promo credits', 131072],
   ];
 
   const apply = db.transaction(() => {

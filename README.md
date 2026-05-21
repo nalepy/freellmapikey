@@ -2,9 +2,9 @@
 
 # FreeLLMAPI
 
-**One OpenAI-compatible endpoint. Eleven free LLM providers. ~1B+ tokens per month.**
+**One OpenAI-compatible endpoint. 17 integrated providers. ~1B+ tokens per month.**
 
-Aggregate the free tiers from Google, Groq, Cerebras, SambaNova, NVIDIA, Mistral, OpenRouter, GitHub Models, Cohere, Cloudflare, and Z.ai (Zhipu) behind a single `/v1/chat/completions` endpoint. Keys are stored encrypted. A router picks the best available model for each request, falls over to the next provider when one is rate-limited, and tracks per-key usage so you stay under every free-tier cap.
+Aggregate the free tiers from Google, Groq, Cerebras, SambaNova, NVIDIA, Mistral, OpenRouter, GitHub Models, Cohere, Cloudflare, Hugging Face, Together AI, and Z.ai (Zhipu) behind a single `/v1/chat/completions` endpoint. Keys are stored encrypted. A router picks the best available model for each request, falls over to the next provider when one is rate-limited, and tracks per-key usage so you stay under every free-tier cap.
 
 [![CI](https://github.com/tashfeenahmed/freellmapi/actions/workflows/ci.yml/badge.svg)](https://github.com/tashfeenahmed/freellmapi/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
@@ -35,7 +35,7 @@ Aggregate the free tiers from Google, Groq, Cerebras, SambaNova, NVIDIA, Mistral
 
 Every serious AI lab now offers a free tier — a few million tokens a month, a few thousand requests a day. On its own each tier is a toy. Stacked together, they add up to roughly **1.3 billion tokens per month** of working inference capacity, across dozens of models from small-and-fast to reasonably capable.
 
-The problem is that stacking them by hand is painful: fourteen different SDKs, fourteen different rate limits, fourteen places a request can fail. FreeLLMAPI collapses that into one OpenAI-compatible endpoint. Point any OpenAI client library at your local server, and it routes transparently across whichever providers you've added keys for.
+The problem is that stacking them by hand is painful: many different SDKs, rate limits, and failure modes per vendor. FreeLLMAPI collapses that into one OpenAI-compatible endpoint. Point any OpenAI client library at your local server, and it routes transparently across whichever providers you've added keys for.
 
 ## Supported providers
 
@@ -54,9 +54,13 @@ The problem is that stacking them by hand is painful: fourteen different SDKs, f
 </tr>
 <tr>
 <td align="center"><a href="https://cohere.com"><b>Cohere</b><br/>Command R+ · Command-A (trial)</a></td>
+<td align="center"><a href="https://huggingface.co/docs/inference-providers"><b>Hugging Face</b><br/>GPT-OSS · Llama 3.1/3.3 (router)</a></td>
+<td align="center"><a href="https://docs.together.ai"><b>Together AI</b><br/>GPT-OSS 20B · Llama 3.1/3.3 Turbo</a></td>
 <td align="center"><a href="https://docs.z.ai"><b>Z.ai (Zhipu)</b><br/>GLM-4.5 · GLM-4.7 Flash</a></td>
+</tr>
+<tr>
 <td align="center"><a href="https://build.nvidia.com"><b>NVIDIA</b><br/>NIM (disabled by default)</a></td>
-<td align="center"><i>Adding another? See <a href="#contributing">Contributing</a>.</i></td>
+<td colspan="3" align="center"><i>Adding another? See <a href="#contributing">Contributing</a>.</i></td>
 </tr>
 </table>
 
@@ -110,6 +114,13 @@ npm run dev
 ```
 
 Open http://localhost:5173 (the Vite dev UI), add your provider keys on the **Keys** page, reorder the **Fallback Chain** to taste, and grab your unified API key from the **Keys** page header. That unified key is what you point your OpenAI SDK at.
+
+**Hugging Face & Together AI**
+
+| Provider | Where to get a key | Notes |
+| --- | --- | --- |
+| Hugging Face | [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens) | Create a token with **Inference Providers** permission (`hf_…`). Routed via `https://router.huggingface.co/v1`. |
+| Together AI | [api.together.ai/settings/api-keys](https://api.together.ai/settings/api-keys) | Prepaid credits (often a $5 minimum top-up). OpenAI-compatible serverless models. |
 
 For a production build:
 
@@ -204,7 +215,7 @@ final = client.chat.completions.create(
 print(final.choices[0].message.content)
 ```
 
-Works with `stream=True` as well — you'll get `delta.tool_calls` chunks followed by a `finish_reason: "tool_calls"` close. Under the hood, OpenAI-compatible providers (Groq, Cerebras, SambaNova, Mistral, OpenRouter, GitHub Models, HuggingFace, Cloudflare, Cohere compat) get the request passed through; Gemini requests get translated into Google's `functionDeclarations` / `functionResponse` shape and the response is translated back.
+Works with `stream=True` as well — you'll get `delta.tool_calls` chunks followed by a `finish_reason: "tool_calls"` close. Under the hood, OpenAI-compatible providers (Groq, Cerebras, SambaNova, Mistral, OpenRouter, GitHub Models, Hugging Face, Together AI, Cloudflare, Cohere compat) get the request passed through; Gemini requests get translated into Google's `functionDeclarations` / `functionResponse` shape and the response is translated back.
 
 Every response carries an `X-Routed-Via: <platform>/<model>` header so you can see which provider actually served each call. If a request fell over between providers, you'll also see `X-Fallback-Attempts: N`.
 
@@ -216,7 +227,7 @@ FreeLLMAPI exposes `POST /v1/messages` in the same wire format Claude Code expec
 
 **Not supported:** the Claude **Desktop** app → **Code** tab. With Pro/Max, Desktop manages `ANTHROPIC_BASE_URL` (“cannot be overridden” in the Local environment editor) and keeps routing to `api.anthropic.com`. Use the CLI or Cursor for FreeLLMAPI.
 
-1. Start FreeLLMAPI and add your **provider** keys on the Keys page (Groq, Google, …).
+1. Start FreeLLMAPI and add your **provider** keys on the Keys page (Groq, Google, Hugging Face, Together AI, …).
 2. Copy the **unified** key from the dashboard (`freellmapi-…`) — that is the only key the CLI needs.
 3. Point **Claude Code CLI** at your proxy:
 
@@ -429,7 +440,7 @@ API: `GET /api/analytics/usage-log?range=7d&limit=100` (same `range` as other an
                                           │
    ┌──────────────┬────────────┬──────────┴─────────┬─────────────┬──────────┐
    ▼              ▼            ▼                    ▼             ▼          ▼
- Google         Groq        Cerebras           OpenRouter        HF       …10 more
+ Google         Groq        Cerebras           OpenRouter   Hugging Face  Together AI  …more
 ```
 
 - **Router** (`server/src/services/router.ts`) — picks a model per request.
@@ -447,6 +458,7 @@ Stacking free tiers has real trade-offs. Be honest with yourself about them:
 - **Intelligence degrades as the day progresses.** Your top-ranked models (usually Gemini 2.5 Pro, GPT-4o via GitHub Models) have the lowest daily caps. Once they hit their limits, the router falls down your priority chain to smaller/weaker models. Expect the effective intelligence of the endpoint to drop in the late hours of each day — then reset at UTC midnight.
 - **Latency is highly variable.** Cerebras and Groq are extremely fast; others are not. You get whichever one is available.
 - **Free tiers can change without notice.** Providers regularly tighten, loosen, or remove free tiers. When that happens you'll see 429s or auth errors until you update the catalog. Re-seed scripts live in `server/src/scripts/`.
+- **Credit-based providers.** Hugging Face Inference Providers and Together AI use small prepaid credit pools (not unlimited monthly free RPM like Groq). Budget rows in the dashboard reflect that.
 - **No SLA, by definition.** If you need reliability, use a paid provider with a contract.
 - **Local-first.** There's no multi-tenant auth. Run this for yourself; don't expose it to the internet.
 
@@ -500,11 +512,13 @@ A self-hosted, single-user, personal-use setup was re-reviewed against each prov
 | Cohere | ❌ Avoid | Terms §14 still forbids *"personal, family or household purposes."* |
 | Zhipu (open.bigmodel.cn) | ✅ Likely OK | Personal/non-commercial research carve-out still in the platform docs. |
 | Z.ai (api.z.ai) | ⚠️ Caution | New row — Singapore entity (distinct from Zhipu CN). §III.3(l) anti-traffic-redirect clause could plausibly be read against a proxy; no explicit personal-use carve-out. |
-| Ollama Cloud | ✅ Likely OK | New row — Free plan permits cloud-model access (1 concurrent, 5-hour session caps). No anti-proxy / anti-resale clauses found. *(Integration tracked in #14.)* |
+| Ollama Cloud | ✅ Likely OK | Free plan permits cloud-model access (1 concurrent, 5-hour session caps). No anti-proxy / anti-resale clauses found. |
+| Hugging Face | ⚠️ Caution | Inference Providers credits (~$0.10/mo free tier); routed via `router.huggingface.co` OpenAI API. Legacy Fireworks-route model removed in V4 (broken tool calls). |
+| Together AI | ⚠️ Caution | Prepaid credits only ($5 minimum purchase since July 2025); signup promos may apply. Serverless API permits customer-application integration. |
 
 Rules of thumb that keep most providers happy: **one account per provider**, **no reselling**, **no sharing your endpoint with other humans**, **don't hammer a free tier as a paid production backend**. This is informational, not legal advice — read each provider's ToS and make your own call.
 
-Removed since the April 2026 review: Hugging Face, Moonshot, and MiniMax direct integrations were dropped from the catalog (HF — tool-call format issues; Moonshot — moved to paid only; MiniMax — superseded by the OpenRouter `minimax/minimax-m2.5:free` route).
+Removed from the catalog (April 2026 review): Moonshot and MiniMax direct integrations (Moonshot — paid-only; MiniMax — use OpenRouter `minimax/minimax-m2.5:free`). Hugging Face was re-added in V13 via the Inference Providers router with new model ids (the old Fireworks-route Llama row failed structured tool calls).
 
 ## Disclaimer
 

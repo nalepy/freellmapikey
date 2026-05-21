@@ -246,6 +246,8 @@ describe('OpenAICompatProvider - platform instances', () => {
     { platform: 'mistral',    name: 'Mistral',       baseUrl: 'https://api.mistral.ai/v1' },
     { platform: 'openrouter', name: 'OpenRouter',    baseUrl: 'https://openrouter.ai/api/v1' },
     { platform: 'github',     name: 'GitHub Models', baseUrl: 'https://models.github.ai/inference' },
+    { platform: 'huggingface', name: 'Hugging Face', baseUrl: 'https://router.huggingface.co/v1' },
+    { platform: 'together',    name: 'Together AI',   baseUrl: 'https://api.together.ai/v1' },
     { platform: 'zhipu',      name: 'Zhipu AI',      baseUrl: 'https://open.bigmodel.cn/api/paas/v4' },
   ] as const;
 

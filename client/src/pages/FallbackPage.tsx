@@ -92,6 +92,8 @@ const platformColors: Record<string, string> = {
   github:      '#6e7b8b',
   cohere:      '#d946ef',
   cloudflare:  '#f38020',
+  huggingface: '#ffd21e',
+  together:    '#3b82f6',
   zhipu:       '#06b6d4',
   ollama:      '#000000',
   kilo:        '#7c3aed',

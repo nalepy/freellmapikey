@@ -21,6 +21,8 @@ const PLATFORMS: { value: Platform; label: string }[] = [
   { value: 'github', label: 'GitHub Models' },
   { value: 'cohere', label: 'Cohere' },
   { value: 'cloudflare', label: 'Cloudflare Workers AI' },
+  { value: 'huggingface', label: 'Hugging Face' },
+  { value: 'together', label: 'Together AI' },
   { value: 'zhipu', label: 'Zhipu AI (Z.ai)' },
   { value: 'ollama', label: 'Ollama Cloud' },
   { value: 'kilo', label: 'Kilo Gateway (anon ok)' },
@@ -42,6 +44,13 @@ const statusLabel: Record<string, string> = {
   invalid: 'invalid',
   error: 'error',
   unknown: 'unchecked',
+}
+
+const PLATFORM_KEY_HELP: Partial<Record<Platform, string>> = {
+  huggingface:
+    'Token from huggingface.co/settings/tokens with Inference Providers permission (hf_…).',
+  together:
+    'API key from api.together.ai/settings/api-keys. Prepaid credits — not an unlimited free tier.',
 }
 
 interface HealthPlatform {
@@ -208,7 +217,7 @@ export default function KeysPage() {
     <div>
       <PageHeader
         title="Keys"
-        description="Provider keys, unified API key, and setup for OpenAI SDK, Claude Code CLI (terminal), and Codex — text and vision (images)."
+        description="Add keys for Groq, Google, Hugging Face, Together AI, and other providers — then use the unified key for OpenAI SDK, Claude Code CLI, and Codex."
         actions={
           keys.length > 0 && (
             <Button variant="outline" size="sm" onClick={() => checkAll.mutate()} disabled={checkAll.isPending}>
@@ -238,6 +247,11 @@ export default function KeysPage() {
                   ))}
                 </SelectContent>
               </Select>
+              {platform && PLATFORM_KEY_HELP[platform] && (
+                <p className="text-[11px] text-muted-foreground max-w-[280px] leading-snug">
+                  {PLATFORM_KEY_HELP[platform]}
+                </p>
+              )}
             </div>
             {needsAccountId && (
               <div className="space-y-1.5">

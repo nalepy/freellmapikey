@@ -116,7 +116,10 @@ network_access = true`
           Anthropic.
         </div>
         <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
-          <li>Add Groq, Google, or other provider keys on this page (include Google or Llama 4 if you use images).</li>
+          <li>
+            Add provider keys on this page — Groq, Google, Hugging Face, Together AI, OpenRouter, etc. (include Google or
+            Llama 4 if you use images).
+          </li>
           <li>Copy the unified key from the section above.</li>
           <li>Run <code className="font-mono">claude</code> from a terminal with the env vars below (not from Claude Desktop).</li>
         </ol>
@@ -155,7 +158,7 @@ claude`}</CodeBlock>
           <code className="font-mono">POST /v1/messages/count_tokens</code>. Model names like{' '}
           <code className="font-mono">claude-sonnet-4-…</code> are labels — the proxy auto-routes through your fallback chain.
           Image blocks in messages use the same vision routing as Codex (vision-capable models only when images are present).
-          After a message, check <strong>Analytics → Usage log</strong> for a new row (provider should be google/groq/cerebras, not
+          After a message, check <strong>Analytics → Usage log</strong> for a new row (provider should be google/groq/huggingface/together, not
           anthropic).
         </p>
         <p className="text-xs font-medium text-foreground">Not supported: Claude Desktop (Code tab)</p>
