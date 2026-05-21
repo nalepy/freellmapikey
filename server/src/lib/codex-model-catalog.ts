@@ -1,9 +1,9 @@
 /**
- * Build Codex model_catalog.json entries from FreeLLMAPI enabled models.
+ * Build Codex model_catalog.json entries from FreeLLMAPIKey enabled models.
  * @see scripts/generate-codex-model-catalog.mjs
  */
 
-export const CODEX_MODEL_PROVIDER_ID = 'freellmapi';
+export const CODEX_MODEL_PROVIDER_ID = 'freellmapikey';
 
 export interface CodexCatalogModelRow {
   model_id: string;
@@ -38,8 +38,8 @@ export function buildCodexModelEntry(
     display_name: displayName,
     displayName,
     description: slug === 'auto'
-      ? 'FreeLLMAPI auto-routes via fallback chain'
-      : `FreeLLMAPI model ${slug}`,
+      ? 'FreeLLMAPIKey auto-routes via fallback chain'
+      : `FreeLLMAPIKey model ${slug}`,
     provider: CODEX_MODEL_PROVIDER_ID,
     hidden: false,
     default_reasoning_level: 'medium',
@@ -63,7 +63,7 @@ export function buildCodexModelEntry(
     experimental_supported_tools: [],
     input_modalities: inputModalities,
     supports_search_tool: false,
-    base_instructions: 'You are a helpful coding assistant routed through FreeLLMAPI.',
+    base_instructions: 'You are a helpful coding assistant routed through FreeLLMAPIKey.',
     truncation_policy: { mode: 'tokens', limit: 10000 },
   };
 }

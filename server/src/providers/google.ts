@@ -7,7 +7,7 @@ import type {
   ChatToolChoice,
   ChatToolDefinition,
   TokenUsage,
-} from '@freellmapi/shared/types.js';
+} from '@freellmapikey/shared/types.js';
 import { sanitizeGeminiParametersSchema } from '../lib/gemini-schema.js';
 import { parseDataUrl, textFromMessageContent } from '../lib/message-content.js';
 import { BaseProvider, type CompletionOptions } from './base.js';

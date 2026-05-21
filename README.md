@@ -1,12 +1,14 @@
 <div align="center">
 
-# FreeLLMAPI
+# FreeLLMAPIKey
 
 **One OpenAI-compatible endpoint. 17 integrated providers. ~1B+ tokens per month.**
 
+> **Fork notice:** This repo is **FreeLLMAPIKey** (`freellmapikey`), a renamed fork of [FreeLLMAPI](https://github.com/tashfeenahmed/freellmapi) by [Tashfeen Ahmed](https://github.com/tashfeenahmed). See [CREDITS.md](./CREDITS.md).
+
 Aggregate the free tiers from Google, Groq, Cerebras, SambaNova, NVIDIA, Mistral, OpenRouter, GitHub Models, Cohere, Cloudflare, Hugging Face, Together AI, and Z.ai (Zhipu) behind a single `/v1/chat/completions` endpoint. Keys are stored encrypted. A router picks the best available model for each request, falls over to the next provider when one is rate-limited, and tracks per-key usage so you stay under every free-tier cap.
 
-[![CI](https://github.com/tashfeenahmed/freellmapi/actions/workflows/ci.yml/badge.svg)](https://github.com/tashfeenahmed/freellmapi/actions/workflows/ci.yml)
+[![CI](https://github.com/nalepy/freellmapikey/actions/workflows/ci.yml/badge.svg)](https://github.com/nalepy/freellmapikey/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#contributing)
 
@@ -16,8 +18,13 @@ Aggregate the free tiers from Google, Groq, Cerebras, SambaNova, NVIDIA, Mistral
 
 ---
 
+## Credits
+
+FreeLLMAPIKey is based on [**FreeLLMAPI**](https://github.com/tashfeenahmed/freellmapi) by [**Tashfeen Ahmed**](https://github.com/tashfeenahmed). This fork uses the name **freellmapikey** so it is not confused with the upstream repository. Full attribution: [CREDITS.md](./CREDITS.md).
+
 ## Contents
 
+- [Credits](#credits)
 - [Why this exists](#why-this-exists)
 - [Supported providers](#supported-providers)
 - [Features](#features)
@@ -35,7 +42,7 @@ Aggregate the free tiers from Google, Groq, Cerebras, SambaNova, NVIDIA, Mistral
 
 Every serious AI lab now offers a free tier — a few million tokens a month, a few thousand requests a day. On its own each tier is a toy. Stacked together, they add up to roughly **1.3 billion tokens per month** of working inference capacity, across dozens of models from small-and-fast to reasonably capable.
 
-The problem is that stacking them by hand is painful: many different SDKs, rate limits, and failure modes per vendor. FreeLLMAPI collapses that into one OpenAI-compatible endpoint. Point any OpenAI client library at your local server, and it routes transparently across whichever providers you've added keys for.
+The problem is that stacking them by hand is painful: many different SDKs, rate limits, and failure modes per vendor. FreeLLMAPIKey collapses that into one OpenAI-compatible endpoint. Point any OpenAI client library at your local server, and it routes transparently across whichever providers you've added keys for.
 
 ## Supported providers
 
@@ -67,8 +74,8 @@ The problem is that stacking them by hand is painful: many different SDKs, rate 
 ## Features
 
 - **OpenAI-compatible** — `POST /v1/chat/completions` and `GET /v1/models` work with the official OpenAI SDKs and any OpenAI-compatible client (LangChain, LlamaIndex, Continue, Hermes, etc.). Just change `base_url`.
-- **Responses API (Codex)** — `POST /v1/responses` with streaming SSE (`response.output_text.delta`, tool-call events) for [OpenAI Codex](https://developers.openai.com/codex) custom providers using the Responses wire protocol.
-- **Anthropic-compatible** — `POST /v1/messages` and `POST /v1/messages/count_tokens` translate to the same router and providers, so the [Claude Code CLI](https://code.claude.com/docs/en/llm-gateway) (`claude` in a terminal) can point at your local proxy via `ANTHROPIC_BASE_URL`. The Claude Desktop Code tab cannot override that URL when using a Pro/Max subscription.
+- **Responses API (Codex)** — `POST /v1/responses` with streaming SSE for advanced use; **Guides** restore Codex to factory OpenAI sign-in instead of a local `base_url`.
+- **Anthropic-compatible** — `POST /v1/messages` and `POST /v1/messages/count_tokens` for advanced integrations; dashboard **Guides** keep Claude Code on factory `api.anthropic.com` (restore steps if you previously used a local base URL).
 - **Streaming and non-streaming** — Server-Sent Events for `stream: true`, JSON response otherwise. Every provider adapter implements both.
 - **Tool calling** — OpenAI-style `tools` / `tool_choice` requests are passed through, and assistant `tool_calls` + `tool` role follow-up messages round-trip across providers.
 - **Vision (Codex & chat)** — Pasted images in Codex (`input_image` on `/v1/responses`) and multimodal user messages on `/v1/chat/completions` are routed to vision-capable models (Gemini, Llama 4, etc.); text-only backends are skipped when images are present.
@@ -76,7 +83,7 @@ The problem is that stacking them by hand is painful: many different SDKs, rate 
 - **Per-key rate tracking** — RPM, RPD, TPM, and TPD counters per `(platform, model, key)` so the router always picks a key that's under its caps.
 - **Sticky sessions** — Multi-turn conversations keep talking to the same model for 30 minutes to avoid the hallucination spike that comes from mid-conversation model switches.
 - **Encrypted key storage** — API keys are encrypted with AES-256-GCM before hitting SQLite; decryption happens in-memory just before a request.
-- **Unified API key** — Clients authenticate to your proxy with a single `freellmapi-…` bearer token. You never expose upstream provider keys to your apps.
+- **Unified API key** — Clients authenticate to your proxy with a single `freellmapikey-…` bearer token. You never expose upstream provider keys to your apps.
 - **Health checks** — Periodic probes mark keys as `healthy`, `rate_limited`, `invalid`, or `error` so the router skips dead ones automatically.
 - **Admin dashboard** — React + Vite UI to manage keys, reorder the fallback chain, inspect analytics, and run prompts in a playground. Dark mode included.
 - **Analytics** — Per-request logging with latency, token counts, success rate, per-provider breakdowns, a **usage log** (timestamped successful routes), and a persistent **error log** for failures.
@@ -101,8 +108,8 @@ PRs that add any of these are very welcome. See [Contributing](#contributing).
 **Prerequisites:** Node.js 20+, npm.
 
 ```bash
-git clone https://github.com/tashfeenahmed/freellmapi.git
-cd freellmapi
+git clone https://github.com/nalepy/freellmapikey.git
+cd freellmapikey
 npm install
 
 # Generate an encryption key for at-rest key storage
@@ -113,7 +120,7 @@ echo "ENCRYPTION_KEY=$(node -e "console.log(require('crypto').randomBytes(32).to
 npm run dev
 ```
 
-Open http://localhost:5173 (the Vite dev UI), add your provider keys on the **Keys** page, reorder the **Fallback Chain** to taste, and grab your unified API key from the **Keys** page header. That unified key is what you point your OpenAI SDK at.
+Open http://localhost:5173 (the Vite dev UI), add your provider keys on the **Keys** page, reorder the **Fallback Chain** to taste, and grab your unified API key from **Keys** or **Guides**. Use **Guides** for VS Code (Continue, Cline) and OpenAI-compatible clients. Claude Code and Codex should stay on factory Anthropic/OpenAI settings (restore steps on **Guides**).
 
 **Hugging Face & Together AI**
 
@@ -140,7 +147,7 @@ from openai import OpenAI
 
 client = OpenAI(
     base_url="http://localhost:3001/v1",
-    api_key="freellmapi-your-unified-key",
+    api_key="freellmapikey-your-unified-key",
 )
 
 resp = client.chat.completions.create(
@@ -155,7 +162,7 @@ print("Routed via:", resp.headers.get("x-routed-via"))
 
 ```bash
 curl http://localhost:3001/v1/chat/completions \
-  -H "Authorization: Bearer freellmapi-your-unified-key" \
+  -H "Authorization: Bearer freellmapikey-your-unified-key" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "auto",
@@ -219,76 +226,52 @@ Works with `stream=True` as well — you'll get `delta.tool_calls` chunks follow
 
 Every response carries an `X-Routed-Via: <platform>/<model>` header so you can see which provider actually served each call. If a request fell over between providers, you'll also see `X-Fallback-Attempts: N`.
 
-**Claude Code CLI (Anthropic-shaped API — no Anthropic account key)**
+**Claude Code (factory settings — not the local proxy)**
 
-FreeLLMAPI exposes `POST /v1/messages` in the same wire format Claude Code expects. Traffic goes to **your** server, is translated internally, and is served by your configured free-tier provider keys (Groq, Gemini, etc.). You do **not** put a real Claude/Anthropic API key into this app.
+The server still exposes `POST /v1/messages` for advanced setups, but the dashboard **Guides** tab no longer routes Claude Code through FreeLLMAPIKey. Use **Continue** or **Cline** in VS Code for local free-tier routing.
 
-**Supported:** the `claude` command in a terminal (PowerShell, Windows Terminal, macOS/Linux shell).
+To **restore factory** Anthropic routing after a previous local setup:
 
-**Not supported:** the Claude **Desktop** app → **Code** tab. With Pro/Max, Desktop manages `ANTHROPIC_BASE_URL` (“cannot be overridden” in the Local environment editor) and keeps routing to `api.anthropic.com`. Use the CLI, Continue in VS Code, or Cursor for FreeLLMAPI.
-
-1. Start FreeLLMAPI and add your **provider** keys on the Keys page (Groq, Google, Hugging Face, Together AI, …).
-2. Copy the **unified** key from the dashboard (`freellmapi-…`) — that is the only key the CLI needs.
-3. Point **Claude Code CLI** at your proxy:
+1. Remove `ANTHROPIC_BASE_URL` and any FreeLLMAPIKey value from `ANTHROPIC_API_KEY` in your shell profile and current session.
+2. Edit `%USERPROFILE%\.claude\settings.json` (Windows) or `~/.claude/settings.json` (macOS/Linux) — delete the `env` block that pointed at `http://localhost:3001`, or clear `env` entirely.
+3. In `claude`, run `/logout` if you mixed a FreeLLMAPIKey key with claude.ai login, then sign in with Anthropic as usual.
+4. Claude **Desktop** (Code tab): leave managed environment as-is (no custom `ANTHROPIC_BASE_URL`).
 
 ```bash
-# Requests go to FreeLLMAPI, NOT api.anthropic.com
-export ANTHROPIC_BASE_URL="http://localhost:3001"
-
-# Claude Code's env name is ANTHROPIC_API_KEY, but the VALUE is your freellmapi-… key
-export ANTHROPIC_API_KEY="freellmapi-your-unified-key-from-dashboard"
-
-cd /path/to/your/project
+unset ANTHROPIC_BASE_URL
+unset ANTHROPIC_API_KEY   # only if it held your FreeLLMAPIKey unified key
 claude
 ```
-
-On Windows PowerShell:
 
 ```powershell
-$env:ANTHROPIC_BASE_URL = "http://localhost:3001"
-$env:ANTHROPIC_API_KEY = "freellmapi-your-unified-key-from-dashboard"
-cd C:\path\to\your\project
+Remove-Item Env:ANTHROPIC_BASE_URL -ErrorAction SilentlyContinue
+Remove-Item Env:ANTHROPIC_API_KEY -ErrorAction SilentlyContinue
 claude
 ```
 
-Alternatively, persist env in `%USERPROFILE%\.claude\settings.json` (CLI reads this; Desktop still overrides `ANTHROPIC_BASE_URL` when signed in):
-
-```json
-{
-  "env": {
-    "ANTHROPIC_BASE_URL": "http://localhost:3001",
-    "ANTHROPIC_API_KEY": "freellmapi-your-unified-key-from-dashboard"
-  }
-}
-```
-
-4. **Auth conflict:** If the CLI warns that both a **claude.ai token** and `ANTHROPIC_API_KEY` are set, run `/logout` inside `claude`, exit, set only the env vars above (or `settings.json`), and start `claude` again. Do not sign in with Anthropic Pro when testing the proxy.
-
-5. **Verify:** Send a short message (e.g. `Reply with exactly: FREELLMAPI-OK`). Open **Analytics → Usage log** — you should see a new row with provider `google`, `groq`, `cerebras`, etc. (not Anthropic). The CLI header may still show marketing labels like “Opus” or “API Usage Billing”; the usage log is the source of truth.
-
-Claude model names in requests (e.g. `claude-sonnet-4-20250514`) are labels for Claude Code — the proxy **auto-routes** them through your fallback chain to real free models. The OpenAI endpoint (`/v1/chat/completions`) is unchanged and uses the same `freellmapi-…` key with `base_url=http://localhost:3001/v1`.
+Traffic should go to `https://api.anthropic.com` again; this app’s **Usage log** should stay empty for Claude sessions.
 
 **Continue (VS Code)**
 
-The [Continue](https://marketplace.visualstudio.com/items?itemName=Continue.continue) extension uses OpenAI Chat Completions. Point it at FreeLLMAPI with `provider: openai` and `apiBase` set to your local `/v1` URL (this repo recommends the extension in `.vscode/extensions.json`).
+The [Continue](https://marketplace.visualstudio.com/items?itemName=Continue.continue) extension uses OpenAI Chat Completions. Point it at FreeLLMAPIKey with `provider: openai` and `apiBase` set to your local `/v1` URL (this repo recommends the extension in `.vscode/extensions.json`).
 
-1. Start FreeLLMAPI and add provider keys on the **Keys** page.
-2. Copy your unified key (`freellmapi-…`).
+1. Start FreeLLMAPIKey and add provider keys on the **Keys** page.
+2. Copy your unified key (`freellmapikey-…`).
 3. Edit Continue config: VS Code → Continue chat → configs dropdown (top right) → cog beside **Local Config**, or open the file directly:
    - Windows: `%USERPROFILE%\.continue\config.yaml`
    - macOS / Linux: `~/.continue/config.yaml`
-4. Add FreeLLMAPI to `config.yaml` (see below), save, and reload the VS Code window if the model does not appear (`Developer: Reload Window`). Select **FreeLLMAPI** in Continue’s model/config dropdown before chatting.
+4. Add FreeLLMAPIKey to `config.yaml` (see below), save, and reload the VS Code window if the model does not appear (`Developer: Reload Window`). Select **FreeLLMAPIKey** in Continue’s model/config dropdown before chatting.
 
-**Already have a Continue config?** Do **not** replace the whole file. Keep your existing top-level `name`, `version`, `schema`, `context`, `rules`, and other `models` entries. Append **one new list item** under `models:` (there must be only one `models:` key in the file). Replace the entire file only if you want FreeLLMAPI as your sole model.
+**Already have a Continue config?** Do **not** replace the whole file. Keep your existing top-level `name`, `version`, `schema`, `context`, `rules`, and other `models` entries. Append **one new list item** under `models:` (there must be only one `models:` key in the file). Replace the entire file only if you want FreeLLMAPIKey as your sole model.
 
 *Existing config — append under `models:`:*
 
 ```yaml
-  - name: FreeLLMAPI
+  - name: FreeLLMAPIKey
     provider: openai
     model: auto
     apiBase: http://localhost:3001/v1
-    apiKey: freellmapi-your-unified-key-from-dashboard
+    apiKey: freellmapikey-your-unified-key-from-dashboard
     roles:
       - chat
       - edit
@@ -303,15 +286,15 @@ The [Continue](https://marketplace.visualstudio.com/items?itemName=Continue.cont
 *New install — full `config.yaml`:*
 
 ```yaml
-name: FreeLLMAPI (local)
+name: FreeLLMAPIKey (local)
 version: 1.0.0
 schema: v1
 models:
-  - name: FreeLLMAPI
+  - name: FreeLLMAPIKey
     provider: openai
     model: auto
     apiBase: http://localhost:3001/v1
-    apiKey: freellmapi-your-unified-key-from-dashboard
+    apiKey: freellmapikey-your-unified-key-from-dashboard
     roles:
       - chat
       - edit
@@ -323,134 +306,35 @@ models:
       maxTokens: 4096
 ```
 
-Use `model: auto` to follow your dashboard fallback chain, or a slug from `GET http://localhost:3001/v1/models` (e.g. `gemini-2.5-flash`). `tool_use` enables Continue Agent mode when the routed backend supports tools. Verify with a short chat message, then check **Analytics → Usage log** for a new row (`x-routed-via` on HTTP responses shows the actual provider). Continue does not use Codex’s `/v1/responses` or Claude’s `/v1/messages`. See the [config.yaml reference](https://docs.continue.dev/reference/) and the copy-paste block on the dashboard **Keys** page.
+Use `model: auto` to follow your dashboard fallback chain, or a slug from `GET http://localhost:3001/v1/models` (e.g. `gemini-2.5-flash`). `tool_use` enables Continue Agent mode when the routed backend supports tools. Verify with a short chat message, then check **Analytics → Usage log** for a new row (`x-routed-via` on HTTP responses shows the actual provider). Continue does not use Codex’s `/v1/responses` or Claude’s `/v1/messages`. See the [config.yaml reference](https://docs.continue.dev/reference/) and the copy-paste blocks on the dashboard **Guides** tab.
 
-**OpenAI Codex (Responses API)**
+**Cline (VS Code)**
 
-[Codex](https://developers.openai.com/codex) (CLI + Desktop) talks to custom providers through the **Responses** wire protocol (`POST /v1/responses`), not Chat Completions. A stock FreeLLMAPI install only had `/v1/chat/completions`, which produced errors like `404 Cannot POST /v1/responses`. This repo adds a Responses compatibility layer so Codex can use the same router, keys, and fallback chain as every other client.
+The [Cline](https://marketplace.visualstudio.com/items?itemName=saoudrizwan.claude-dev) extension (also in `.vscode/extensions.json`) uses an **OpenAI Compatible** provider and `POST /v1/chat/completions` with tool calling for its agent loop.
 
-**What was added in FreeLLMAPI (server)**
+1. Start FreeLLMAPIKey and add provider keys on the **Keys** page.
+2. Copy your unified key (`freellmapikey-…`).
+3. Open the Cline panel → **Settings** (gear) → set **API Provider** to **OpenAI Compatible**.
+4. Set **Base URL** to `http://localhost:3001/v1`, **API Key** to your unified key, and **Model ID** to `auto` (or a slug from `GET http://localhost:3001/v1/models`).
+5. Use **Verify** if offered, send a test message, then check **Analytics → Usage log**.
 
-| Piece | Role |
-| --- | --- |
-| `POST /v1/responses` | Accepts Codex Requests/Responses JSON; maps to internal chat completion |
-| `server/src/lib/responses-compat.ts` | Request/response translation (stream + non-stream, tool events) |
-| `server/src/routes/responses-proxy.ts` | Route handler; `allowUnknownModel` so Codex model labels can auto-route |
-| `server/src/lib/proxy-auth.ts` | Shared auth; **localhost** requests skip bearer check (handy for local Codex) |
-| `AUTO_MODEL_ALIASES` | Treats `auto`, `freellmapi-auto`, etc. like the dashboard fallback chain |
-| `scripts/generate-codex-model-catalog.mjs` | Builds a Codex-shaped `model_catalog_json` from `GET /v1/models` |
+If Plan and Act modes show separate model fields, set both to `auto` or the same slug. Docs: [OpenAI Compatible provider](https://docs.cline.bot/provider-config/openai-compatible). Full steps are on the dashboard **Guides** tab.
 
-Mount order in `server/src/app.ts`: Anthropic routes → **Responses** → OpenAI Chat proxy (so `/v1/responses` is not swallowed by the chat handler).
+**OpenAI Codex (factory settings — not the local proxy)**
 
-**1. Start FreeLLMAPI**
+FreeLLMAPIKey still implements `POST /v1/responses` for advanced use, but **Guides** no longer walk through pointing Codex at `localhost`. Restore factory OpenAI routing:
 
-```bash
-npm run dev
-```
-
-Confirm the API is up: `http://localhost:3001/v1/models` should return **200**. Add provider keys on the **Keys** page and set your **fallback chain** (Analytics will show which models actually succeed — tune the chain if one provider is at 0% success).
-
-**2. Copy your unified key**
-
-From the dashboard header: `freellmapi-…` (same key as for curl / OpenAI SDK).
-
-**3. Codex `config.toml` (working template)**
-
-Edit `%USERPROFILE%\.codex\config.toml` (Codex → Settings → Open config.toml). Example that matches a verified Windows + local FreeLLMAPI setup:
+1. Edit `%USERPROFILE%\.codex\config.toml` (Windows) or `~/.codex/config.toml` (macOS/Linux) — Codex → Settings → Open config.toml.
+2. Remove `[model_providers.freellmapikey]`, `model_provider = "freellmapikey"`, and any `model_catalog_json` aimed at `freellmapikey-models.json` (delete that JSON file if present).
+3. Unset `CUSTOM_API_KEY` if you only used it for FreeLLMAPIKey (`Remove-Item Env:CUSTOM_API_KEY` in PowerShell).
+4. Set `model_provider = "openai"` (or remove the line), sign in with your OpenAI account in Codex, and fully quit/reopen Codex.
 
 ```toml
-personality = "pragmatic"
-model = "auto"
-model_reasoning_effort = "medium"
-model_provider = "freellmapi"
-approval_policy = "never"
-sandbox_mode = "danger-full-access"
-
-# Optional: all enabled models in the CLI picker (regenerate after catalog changes)
-# model_catalog_json = "C:\\Users\\<you>\\.codex\\freellmapi-models.json"
-
-[model_providers.freellmapi]
-name = "FreeLLMAPI (local)"
-base_url = "http://localhost:3001/v1"
-env_key = "CUSTOM_API_KEY"
-wire_api = "responses"
-
-[windows]
-sandbox = "unelevated"
-
-[sandbox_workspace_write]
-network_access = true
-
-[projects.'C:\\Users\\<you>\\Workspace\\freellmapi']
-trust_level = "trusted"
+# Remove FreeLLMAPIKey / localhost base_url blocks entirely.
+model_provider = "openai"
 ```
 
-**4. API key env var**
-
-```powershell
-$env:CUSTOM_API_KEY = "freellmapi-your-unified-key-from-dashboard"
-```
-
-Persist it in your user environment or shell profile if you do not want to set it every session.
-
-**5. Restart Codex** after any `config.toml` change (values are read at startup).
-
-**Windows: “Couldn't set up admin sandbox”**
-
-On Windows, Codex tries to create an elevated “admin sandbox” (firewall rules + sandbox users). Older Codex builds often fail with `helper_firewall_rule_create_or_add_failed` / `SetRemoteAddresses` HRESULT `0x80070057` ([openai/codex#17053](https://github.com/openai/codex/issues/17053)). That blocks the Desktop UI even when FreeLLMAPI is fine.
-
-What we did to get Codex working locally:
-
-| Step | Why |
-| --- | --- |
-| `sandbox_mode = "danger-full-access"` in `config.toml` | Runs tools on the host without the broken admin sandbox (trusted local dev only) |
-| `[windows] sandbox = "unelevated"` | Avoids insisting on elevated sandbox setup |
-| `[sandbox_workspace_write] network_access = true` | Lets sandboxed/tooling paths reach `localhost:3001` |
-| Delete stale `%USERPROFILE%\.codex\.sandbox\setup_marker.json` and `setup_error.json` | Forces a clean retry instead of reusing a failed setup from weeks ago |
-| Click **Use backup sandbox** in the Codex UI if the red banner still appears | Official fallback when admin sandbox setup fails |
-| Fully quit and reopen Codex after editing `config.toml` | Desktop does not always hot-reload config |
-
-Optional CLI check (close stdin so Codex does not hang waiting for terminal input):
-
-```powershell
-cmd /c "cd /d C:\Users\Nestor\Workspace\freellmapi && C:\Users\Nestor\AppData\Local\OpenAI\Codex\bin\codex.exe exec --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check -c model_provider=freellmapi \"Reply with exactly: CODEX_OK\" < NUL"
-```
-
-You should see `provider: freellmapi` and a successful reply. If `codex update` is unavailable (Microsoft Store install), stay on `danger-full-access` until a newer Codex build ships with the firewall fix.
-
-**Auto-routing vs the model picker**
-
-| What you set in Codex | What FreeLLMAPI does |
-| --- | --- |
-| `model = "auto"` (recommended) | Uses your **fallback chain** on the first turn; sticky session keeps the same backend for follow-ups. No need to change the picker mid-session. |
-| A Codex label not in the catalog (e.g. `gpt-5.4`, `gpt-5.3-codex`) | Same as auto — name is ignored; router picks from the chain (`allowUnknownModel`). |
-| A real id from the catalog (e.g. `gemini-2.5-flash`) | **Pins** that model (and sticky follow-ups). Use when you want one provider on purpose. |
-
-The dashboard **fallback order** is what “auto” means. Check **Analytics → Per-model breakdown** if routing often hits models with low success rate.
-
-**Model catalog for the picker (optional)**
-
-Codex does not always call `GET /v1/models` for custom providers. Generate a local catalog from your running server:
-
-```powershell
-npm run codex:model-catalog
-```
-
-Writes `%USERPROFILE%\.codex\freellmapi-models.json` (all enabled models plus **Auto**). Uncomment or add in `config.toml`:
-
-```toml
-model_catalog_json = "C:\\Users\\<you>\\.codex\\freellmapi-models.json"
-```
-
-Regenerate after you add keys or change the catalog. The generator must emit Codex `ModelInfo` fields (`display_name`, `supported_reasoning_levels`, etc.) — see `scripts/generate-codex-model-catalog.mjs`. A hand-edited catalog with wrong field names (`displayName`, `visibility: "visible"`, …) makes Codex fail at startup with `failed to parse model_catalog_json`.
-
-The **Codex Desktop** picker may still hide custom-provider entries ([openai/codex#15138](https://github.com/openai/codex/issues/15138)); the CLI and `model = "auto"` in TOML work regardless.
-
-**Identity / cutoff answers**
-
-Codex may still describe itself as the OpenAI Codex product (e.g. “knowledge cutoff October 2024”) because that is Codex’s own system prompt — not text returned by FreeLLMAPI. Inference still goes through your configured free-tier models; check `X-Routed-Via` on HTTP responses or the dashboard Analytics for the actual backend.
-
-Chat Completions (`/v1/chat/completions`) and Claude Code (`/v1/messages`) are unchanged for other tools.
+For local free-tier models in the editor, use **Continue** or **Cline** (above) instead of Codex. See [Codex configuration](https://developers.openai.com/codex/config).
 
 ## Screenshots
 
@@ -470,7 +354,7 @@ Send a chat completion through the router and see which provider served it, with
 
 Request volume, success rate, tokens in and out, average latency, and per-provider breakdowns over 24h / 7d / 30d windows.
 
-- **Usage log** — Scrollable table of each **successful** routed request (newest first): local timestamp, provider, model, vision flag, input/output tokens, and latency. Use it to confirm Claude Code CLI, Codex, Continue, or other clients are hitting the proxy and which backend served the call. Cleared when you **Reset analytics**.
+- **Usage log** — Scrollable table of each **successful** routed request (newest first): local timestamp, provider, model, vision flag, input/output tokens, and latency. Use it to confirm Continue, Cline, Playground, or other OpenAI-compatible clients are hitting the proxy. Cleared when you **Reset analytics**.
 - **Error log (debug)** — Detailed failure rows (endpoint, retry, vision flags, full message) plus `server/data/error.log`. Kept when you reset analytics so you can still debug.
 
 API: `GET /api/analytics/usage-log?range=7d&limit=100` (same `range` as other analytics endpoints: `24h`, `7d`, `30d`).
@@ -480,7 +364,7 @@ API: `GET /api/analytics/usage-log?range=7d&limit=100` (same `range` as other an
 ## How it works
 
 ```
-┌──────────────────┐   Bearer freellmapi-…   ┌─────────────────────────┐
+┌──────────────────┐   Bearer freellmapikey-…   ┌─────────────────────────┐
 │  OpenAI SDK /    │ ──────────────────────▶ │  Express proxy (:3001)  │
 │  curl / any      │ ◀────────────────────── │  /v1/chat/completions   │
 │  OpenAI client   │      streamed tokens    └────────────┬────────────┘
@@ -541,7 +425,7 @@ PRs should include a test, keep the existing test suite green, and match the `.e
 
 ### Contributors
 
-Thanks to everyone who's helped improve FreeLLMAPI:
+Thanks to everyone who's helped improve FreeLLMAPIKey:
 
 - [@moaaz12-web](https://github.com/moaaz12-web) — tool-calling support across providers (#3)
 - [@lukasulc](https://github.com/lukasulc) — better-sqlite3 bump to fix npm install on Node 24+ (#12)
@@ -579,7 +463,7 @@ Removed from the catalog (April 2026 review): Moonshot and MiniMax direct integr
 
 ## Disclaimer
 
-**This project is for personal experimentation and learning, not production.** Free tiers exist so developers can prototype against them; they aren't a stable, supported inference substrate and shouldn't be treated as one. If you build something real on top of FreeLLMAPI, swap in a paid API before you ship. Your relationship with each upstream provider is governed by the terms you accepted when you created your account — those terms still apply when the traffic is proxied through this project, and you're responsible for complying with them.
+**This project is for personal experimentation and learning, not production.** Free tiers exist so developers can prototype against them; they aren't a stable, supported inference substrate and shouldn't be treated as one. If you build something real on top of FreeLLMAPIKey, swap in a paid API before you ship. Your relationship with each upstream provider is governed by the terms you accepted when you created your account — those terms still apply when the traffic is proxied through this project, and you're responsible for complying with them.
 
 ## License
 

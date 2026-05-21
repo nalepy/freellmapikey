@@ -7,7 +7,7 @@ import type {
   ChatToolCall,
   ChatToolChoice,
   ChatToolDefinition,
-} from '@freellmapi/shared/types.js';
+} from '@freellmapikey/shared/types.js';
 
 // ---- Anthropic request/response shapes (subset used by Claude Code) ----
 

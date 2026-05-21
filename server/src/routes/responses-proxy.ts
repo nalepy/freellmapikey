@@ -111,7 +111,7 @@ responsesProxyRouter.post('/responses', async (req: Request, res: Response) => {
 
   const body = parsed.data as ResponsesCreateRequest;
   const openaiParams = responsesRequestToOpenAI(body);
-  const displayModel = body.model ?? 'freellmapi-auto';
+  const displayModel = body.model ?? 'freellmapikey-auto';
 
   if (openaiParams.stream) {
     const encoder = new ResponsesStreamEncoder(body, displayModel);

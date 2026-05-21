@@ -6,8 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { PageHeader } from '@/components/page-header'
-import { IntegrationsGuide } from '@/components/integrations-guide'
-import { getOpenAiBaseUrl } from '@/lib/proxy-url'
+import { UnifiedKeySection } from '@/components/unified-key-section'
 import type { ApiKey, Platform } from '../../../shared/types'
 
 const PLATFORMS: { value: Platform; label: string }[] = [
@@ -66,77 +65,6 @@ interface HealthPlatform {
 interface HealthData {
   platforms: HealthPlatform[]
   keys: { id: number; platform: string; status: string; lastCheckedAt: string | null }[]
-}
-
-function UnifiedKeySection() {
-  const queryClient = useQueryClient()
-  const [showKey, setShowKey] = useState(false)
-  const [copied, setCopied] = useState(false)
-
-  const { data } = useQuery<{ apiKey: string }>({
-    queryKey: ['unified-key'],
-    queryFn: () => apiFetch('/api/settings/api-key'),
-  })
-
-  const regenerate = useMutation({
-    mutationFn: () => apiFetch('/api/settings/api-key/regenerate', { method: 'POST' }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['unified-key'] }),
-  })
-
-  const apiKey = data?.apiKey ?? ''
-  const masked = apiKey ? apiKey.slice(0, 13) + '•'.repeat(32) : '…'
-  const baseUrl = getOpenAiBaseUrl()
-
-  function copy() {
-    navigator.clipboard.writeText(apiKey)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
-  }
-
-  return (
-    <section className="rounded-lg border bg-card p-5">
-      <div className="flex items-start justify-between gap-4 mb-3">
-        <div>
-          <h2 className="text-sm font-medium">Your unified API key</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            One key for OpenAI SDK, Claude Code <strong>CLI</strong>, and OpenAI Codex — including vision (images in Codex
-            and multimodal chat). Use it as <code className="font-mono">api_key</code>,{' '}
-            <code className="font-mono">ANTHROPIC_API_KEY</code> (terminal <code className="font-mono">claude</code> only), or
-            Codex <code className="font-mono">CUSTOM_API_KEY</code>.
-          </p>
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => regenerate.mutate()}
-          disabled={regenerate.isPending}
-        >
-          Regenerate
-        </Button>
-      </div>
-
-      <div className="flex items-center gap-2">
-        <code className="flex-1 font-mono text-xs bg-muted px-3 py-2 rounded-md select-all truncate tabular-nums">
-          {showKey ? apiKey : masked}
-        </code>
-        <Button variant="outline" size="sm" onClick={() => setShowKey(!showKey)}>
-          {showKey ? 'Hide' : 'Show'}
-        </Button>
-        <Button variant="outline" size="sm" onClick={copy}>
-          {copied ? 'Copied' : 'Copy'}
-        </Button>
-      </div>
-
-      <div className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-xs">
-        <span className="text-muted-foreground">Base URL</span>
-        <code className="font-mono">{baseUrl}</code>
-        <span className="text-muted-foreground">Endpoints</span>
-        <span className="font-mono text-[11px] leading-relaxed">
-          /v1/chat/completions · /v1/messages (Claude CLI) · /v1/responses (Codex)
-        </span>
-      </div>
-    </section>
-  )
 }
 
 export default function KeysPage() {
@@ -217,7 +145,7 @@ export default function KeysPage() {
     <div>
       <PageHeader
         title="Keys"
-        description="Add keys for Groq, Google, Hugging Face, Together AI, and other providers — then use the unified key for OpenAI SDK, Claude Code CLI, and Codex."
+        description="Add keys for Groq, Google, Hugging Face, Together AI, and other providers. Client setup lives on the Guides tab."
         actions={
           keys.length > 0 && (
             <Button variant="outline" size="sm" onClick={() => checkAll.mutate()} disabled={checkAll.isPending}>
@@ -229,8 +157,6 @@ export default function KeysPage() {
 
       <div className="space-y-8">
         <UnifiedKeySection />
-
-        <IntegrationsGuide />
 
         <section>
           <h2 className="text-sm font-medium mb-3">Add a provider key</h2>

@@ -1,4 +1,4 @@
-/** Origin of the FreeLLMAPI server (no trailing slash). */
+/** Origin of the FreeLLMAPIKey server (no trailing slash). */
 export function getProxyOrigin(): string {
   if (import.meta.env.DEV) {
     return `http://${window.location.hostname}:${__SERVER_PORT__}`

@@ -8,7 +8,7 @@ import { buildCodexModelCatalog } from '../lib/codex-model-catalog.js';
 
 export const codexRouter = Router();
 
-const DEFAULT_CATALOG_PATH = join(homedir(), '.codex', 'freellmapi-models.json');
+const DEFAULT_CATALOG_PATH = join(homedir(), '.codex', 'freellmapikey-models.json');
 
 function loadEnabledModels() {
   const db = getDb();
@@ -30,7 +30,7 @@ codexRouter.get('/model-catalog', (_req: Request, res: Response) => {
   res.json(catalog);
 });
 
-/** Write ~/.codex/freellmapi-models.json for Codex Desktop model picker (local dashboard only). */
+/** Write ~/.codex/freellmapikey-models.json for Codex Desktop model picker (local dashboard only). */
 codexRouter.post('/sync-catalog', async (req: Request, res: Response) => {
   const outPath = typeof req.body?.path === 'string' && req.body.path.length > 0
     ? req.body.path
@@ -45,7 +45,7 @@ codexRouter.post('/sync-catalog', async (req: Request, res: Response) => {
     modelCount: catalog.models.length,
     configSnippet: [
       'model = "auto"',
-      'model_provider = "freellmapi"',
+      'model_provider = "freellmapikey"',
       `model_catalog_json = "${outPath.replace(/\\/g, '\\\\')}"`,
     ].join('\n'),
   });

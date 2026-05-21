@@ -5,7 +5,7 @@ import {
   ResponsesStreamEncoder,
   formatResponsesSse,
 } from '../../lib/responses-compat.js';
-import type { ChatCompletionResponse } from '@freellmapi/shared/types.js';
+import type { ChatCompletionResponse } from '@freellmapikey/shared/types.js';
 
 describe('responses-compat', () => {
   it('preserves input_image as OpenAI image_url content', () => {

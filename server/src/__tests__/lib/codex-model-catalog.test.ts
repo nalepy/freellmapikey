@@ -18,7 +18,7 @@ describe('buildCodexModelCatalog', () => {
 
     expect(auto.slug).toBe('auto');
     expect(flash.slug).toBe('gemini-2.5-flash');
-    expect(flash.provider).toBe('freellmapi');
+    expect(flash.provider).toBe('freellmapikey');
     expect(flash.hidden).toBe(false);
     expect(flash.displayName).toBe('Gemini 2.5 Flash');
     expect(flash.input_modalities).toEqual(['text', 'image']);

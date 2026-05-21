@@ -3,7 +3,7 @@ import type {
   ChatCompletionResponse,
   ChatCompletionChunk,
   Platform,
-} from '@freellmapi/shared/types.js';
+} from '@freellmapikey/shared/types.js';
 import { BaseProvider, type CompletionOptions } from './base.js';
 import { deltaContentToString } from '../lib/message-content.js';
 

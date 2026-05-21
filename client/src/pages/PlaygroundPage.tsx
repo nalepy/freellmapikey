@@ -147,7 +147,7 @@ export default function PlaygroundPage() {
     <div className="flex flex-col h-[calc(100vh-8rem)]">
       <PageHeader
         title="Playground"
-        description="Test the OpenAI-compatible router (text and vision). Claude Code CLI and Codex use the same keys — see Keys for setup."
+        description="Test the OpenAI-compatible router (text and vision). Client setup is on the Guides tab."
         actions={
           <>
             <Select value={selectedModel} onValueChange={(v) => setSelectedModel(v ?? 'auto')}>

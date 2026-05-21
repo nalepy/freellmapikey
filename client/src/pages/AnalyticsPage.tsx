@@ -342,7 +342,7 @@ export default function AnalyticsPage() {
         <Panel title="Usage log">
           <p className="text-xs text-muted-foreground mb-3">
             Each successful routed request in the selected range ({range}), newest first. Use this to confirm when
-            Claude Code CLI, Codex, or other clients hit the proxy and which provider/model served the call.
+            Continue, Cline, Playground, or other OpenAI-compatible clients hit the proxy and which provider/model served the call.
             Cleared when you reset analytics.
           </p>
           {!usageLog?.entries?.length ? (

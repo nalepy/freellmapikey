@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, NavLink } from 'react-router-do
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import KeysPage from '@/pages/KeysPage'
+import GuidesPage from '@/pages/GuidesPage'
 import PlaygroundPage from '@/pages/PlaygroundPage'
 import FallbackPage from '@/pages/FallbackPage'
 import AnalyticsPage from '@/pages/AnalyticsPage'
@@ -62,9 +63,9 @@ function Brand() {
     <div className="flex items-center gap-2 min-w-0">
       <span className="inline-block size-2 rounded-full bg-foreground shrink-0" />
       <div className="min-w-0">
-        <span className="font-semibold tracking-tight text-sm">FreeLLMAPI</span>
+        <span className="font-semibold tracking-tight text-sm">FreeLLMAPIKey</span>
         <span className="hidden sm:block text-[11px] text-muted-foreground leading-tight">
-          OpenAI · Claude CLI · Codex · Vision
+          OpenAI-compatible · VS Code
         </span>
       </div>
     </div>
@@ -82,6 +83,7 @@ function App() {
               <nav className="flex items-center gap-6 ml-10">
                 <NavItem to="/playground">Playground</NavItem>
                 <NavItem to="/keys">Keys</NavItem>
+                <NavItem to="/guides">Guides</NavItem>
                 <NavItem to="/fallback">Fallback</NavItem>
                 <NavItem to="/analytics">Analytics</NavItem>
               </nav>
@@ -95,6 +97,7 @@ function App() {
               <Route path="/" element={<Navigate to="/playground" replace />} />
               <Route path="/playground" element={<PlaygroundPage />} />
               <Route path="/keys" element={<KeysPage />} />
+              <Route path="/guides" element={<GuidesPage />} />
               <Route path="/fallback" element={<FallbackPage />} />
               <Route path="/analytics" element={<AnalyticsPage />} />
               <Route path="/test" element={<Navigate to="/playground" replace />} />

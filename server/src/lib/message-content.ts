@@ -1,4 +1,4 @@
-import type { ChatContentPart, ChatMessage } from '@freellmapi/shared/types.js';
+import type { ChatContentPart, ChatMessage } from '@freellmapikey/shared/types.js';
 
 export function messagesHaveImages(messages: ChatMessage[]): boolean {
   for (const m of messages) {

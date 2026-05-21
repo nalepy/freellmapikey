@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
-import type { ChatMessage } from '@freellmapi/shared/types.js';
+import type { ChatMessage } from '@freellmapikey/shared/types.js';
 import { getDb } from '../db/index.js';
 import { buildCodexModelCatalog } from '../lib/codex-model-catalog.js';
 import { authenticateProxyRequest } from '../lib/proxy-auth.js';

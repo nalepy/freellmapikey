@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Build a Codex model_catalog.json from FreeLLMAPI's GET /v1/codex/model-catalog.
- * Usage: node scripts/generate-codex-model-catalog.mjs [--base-url http://localhost:3001] [--out ~/.codex/freellmapi-models.json]
+ * Build a Codex model_catalog.json from FreeLLMAPIKey's GET /v1/codex/model-catalog.
+ * Usage: node scripts/generate-codex-model-catalog.mjs [--base-url http://localhost:3001] [--out ~/.codex/freellmapikey-models.json]
  */
 
 import { writeFile, mkdir } from 'node:fs/promises';
@@ -9,7 +9,7 @@ import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 
 const DEFAULT_BASE = 'http://localhost:3001';
-const DEFAULT_OUT = join(homedir(), '.codex', 'freellmapi-models.json');
+const DEFAULT_OUT = join(homedir(), '.codex', 'freellmapikey-models.json');
 
 function parseArgs(argv) {
   let baseUrl = DEFAULT_BASE;
@@ -32,7 +32,7 @@ async function main() {
   const res = await fetch(`${baseUrl}/v1/codex/model-catalog`);
   if (!res.ok) {
     console.error(`GET /v1/codex/model-catalog failed: ${res.status} ${res.statusText}`);
-    console.error('Start FreeLLMAPI first (npm run dev) or pass --base-url.');
+    console.error('Start FreeLLMAPIKey first (npm run dev) or pass --base-url.');
     process.exit(1);
   }
 
@@ -46,10 +46,10 @@ async function main() {
   console.log('');
   console.log('Add to %USERPROFILE%\\.codex\\config.toml (then restart Codex):');
   console.log('model = "auto"');
-  console.log('model_provider = "freellmapi"');
+  console.log('model_provider = "freellmapikey"');
   console.log(`model_catalog_json = "${outPath.replace(/\\/g, '\\\\')}"`);
   console.log('');
-  console.log('[model_providers.freellmapi]');
+  console.log('[model_providers.freellmapikey]');
   console.log('requires_openai_auth = false');
 }
 

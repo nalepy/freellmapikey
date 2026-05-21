@@ -4,7 +4,7 @@ import {
   modelSupportsVision,
   estimateContentTokens,
 } from '../../lib/message-content.js';
-import type { ChatMessage } from '@freellmapi/shared/types.js';
+import type { ChatMessage } from '@freellmapikey/shared/types.js';
 
 describe('message-content', () => {
   it('detects image_url in user messages', () => {

@@ -5,7 +5,7 @@ import {
   AnthropicStreamEncoder,
   formatAnthropicSse,
 } from '../../lib/anthropic-compat.js';
-import type { ChatCompletionResponse } from '@freellmapi/shared/types.js';
+import type { ChatCompletionResponse } from '@freellmapikey/shared/types.js';
 
 describe('anthropic-compat', () => {
   it('converts system + user messages to OpenAI format', () => {

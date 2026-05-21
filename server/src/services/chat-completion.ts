@@ -6,7 +6,7 @@ import type {
   ChatMessage,
   ChatToolChoice,
   ChatToolDefinition,
-} from '@freellmapi/shared/types.js';
+} from '@freellmapikey/shared/types.js';
 import { getDb, getVisionOnlyRouting } from '../db/index.js';
 import {
   estimateContentTokens,
@@ -23,8 +23,8 @@ export const MAX_COMPLETION_RETRIES = 20;
 /** Client labels that mean "use the fallback chain" (not a real catalog model). */
 export const AUTO_MODEL_ALIASES = new Set([
   'auto',
-  'freellmapi-auto',
-  'freellmapi/auto',
+  'freellmapikey-auto',
+  'freellmapikey/auto',
 ]);
 
 // Sticky sessions: track which model served each "session"

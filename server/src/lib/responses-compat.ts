@@ -6,7 +6,7 @@ import type {
   ChatMessage,
   ChatToolChoice,
   ChatToolDefinition,
-} from '@freellmapi/shared/types.js';
+} from '@freellmapikey/shared/types.js';
 import { deltaContentToString, estimateContentTokens } from './message-content.js';
 import type { OpenAICompletionParams } from './anthropic-compat.js';
 
