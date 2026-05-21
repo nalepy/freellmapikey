@@ -225,7 +225,7 @@ FreeLLMAPI exposes `POST /v1/messages` in the same wire format Claude Code expec
 
 **Supported:** the `claude` command in a terminal (PowerShell, Windows Terminal, macOS/Linux shell).
 
-**Not supported:** the Claude **Desktop** app → **Code** tab. With Pro/Max, Desktop manages `ANTHROPIC_BASE_URL` (“cannot be overridden” in the Local environment editor) and keeps routing to `api.anthropic.com`. Use the CLI or Cursor for FreeLLMAPI.
+**Not supported:** the Claude **Desktop** app → **Code** tab. With Pro/Max, Desktop manages `ANTHROPIC_BASE_URL` (“cannot be overridden” in the Local environment editor) and keeps routing to `api.anthropic.com`. Use the CLI, Continue in VS Code, or Cursor for FreeLLMAPI.
 
 1. Start FreeLLMAPI and add your **provider** keys on the Keys page (Groq, Google, Hugging Face, Together AI, …).
 2. Copy the **unified** key from the dashboard (`freellmapi-…`) — that is the only key the CLI needs.
@@ -267,6 +267,40 @@ Alternatively, persist env in `%USERPROFILE%\.claude\settings.json` (CLI reads t
 5. **Verify:** Send a short message (e.g. `Reply with exactly: FREELLMAPI-OK`). Open **Analytics → Usage log** — you should see a new row with provider `google`, `groq`, `cerebras`, etc. (not Anthropic). The CLI header may still show marketing labels like “Opus” or “API Usage Billing”; the usage log is the source of truth.
 
 Claude model names in requests (e.g. `claude-sonnet-4-20250514`) are labels for Claude Code — the proxy **auto-routes** them through your fallback chain to real free models. The OpenAI endpoint (`/v1/chat/completions`) is unchanged and uses the same `freellmapi-…` key with `base_url=http://localhost:3001/v1`.
+
+**Continue (VS Code)**
+
+The [Continue](https://marketplace.visualstudio.com/items?itemName=Continue.continue) extension uses OpenAI Chat Completions. Point it at FreeLLMAPI with `provider: openai` and `apiBase` set to your local `/v1` URL (this repo recommends the extension in `.vscode/extensions.json`).
+
+1. Start FreeLLMAPI and add provider keys on the **Keys** page.
+2. Copy your unified key (`freellmapi-…`).
+3. Edit Continue config: VS Code → Continue chat → configs dropdown (top right) → cog beside **Local Config**, or open the file directly:
+   - Windows: `%USERPROFILE%\.continue\config.yaml`
+   - macOS / Linux: `~/.continue/config.yaml`
+4. Paste a model entry like the example below, save, and reload the VS Code window if the model does not appear (`Developer: Reload Window`).
+
+```yaml
+name: FreeLLMAPI (local)
+version: 1.0.0
+schema: v1
+models:
+  - name: FreeLLMAPI
+    provider: openai
+    model: auto
+    apiBase: http://localhost:3001/v1
+    apiKey: freellmapi-your-unified-key-from-dashboard
+    roles:
+      - chat
+      - edit
+      - apply
+    capabilities:
+      - tool_use
+    defaultCompletionOptions:
+      temperature: 0.7
+      maxTokens: 4096
+```
+
+Use `model: auto` to follow your dashboard fallback chain, or a slug from `GET http://localhost:3001/v1/models` (e.g. `gemini-2.5-flash`). `tool_use` enables Continue Agent mode when the routed backend supports tools. Verify with a short chat message, then check **Analytics → Usage log** for a new row (`x-routed-via` on HTTP responses shows the actual provider). Continue does not use Codex’s `/v1/responses` or Claude’s `/v1/messages`. See the [config.yaml reference](https://docs.continue.dev/reference/) and the copy-paste block on the dashboard **Keys** page.
 
 **OpenAI Codex (Responses API)**
 
@@ -413,7 +447,7 @@ Send a chat completion through the router and see which provider served it, with
 
 Request volume, success rate, tokens in and out, average latency, and per-provider breakdowns over 24h / 7d / 30d windows.
 
-- **Usage log** — Scrollable table of each **successful** routed request (newest first): local timestamp, provider, model, vision flag, input/output tokens, and latency. Use it to confirm Claude Code CLI, Codex, or other clients are hitting the proxy and which backend served the call. Cleared when you **Reset analytics**.
+- **Usage log** — Scrollable table of each **successful** routed request (newest first): local timestamp, provider, model, vision flag, input/output tokens, and latency. Use it to confirm Claude Code CLI, Codex, Continue, or other clients are hitting the proxy and which backend served the call. Cleared when you **Reset analytics**.
 - **Error log (debug)** — Detailed failure rows (endpoint, retry, vision flags, full message) plus `server/data/error.log`. Kept when you reset analytics so you can still debug.
 
 API: `GET /api/analytics/usage-log?range=7d&limit=100` (same `range` as other analytics endpoints: `24h`, `7d`, `30d`).

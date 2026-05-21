@@ -66,6 +66,29 @@ export function IntegrationsGuide() {
     ),
   })
 
+  const continueConfigPath = isWindows
+    ? '%USERPROFILE%\\.continue\\config.yaml'
+    : '~/.continue/config.yaml'
+
+  const continueConfig = `name: FreeLLMAPI (local)
+version: 1.0.0
+schema: v1
+models:
+  - name: FreeLLMAPI
+    provider: openai
+    model: auto
+    apiBase: ${openAiBase}
+    apiKey: ${KEY_PLACEHOLDER}
+    roles:
+      - chat
+      - edit
+      - apply
+    capabilities:
+      - tool_use
+    defaultCompletionOptions:
+      temperature: 0.7
+      maxTokens: 4096`
+
   const codexConfig = `model_provider = "freellmapi"
 model = "auto"
 model_reasoning_effort = "medium"
@@ -91,14 +114,15 @@ network_access = true`
   return (
     <section className="space-y-3">
       <div>
-        <h2 className="text-sm font-medium">Claude Code CLI &amp; OpenAI Codex</h2>
+        <h2 className="text-sm font-medium">Claude Code, Codex &amp; Continue</h2>
         <p className="text-xs text-muted-foreground mt-0.5">
           Anthropic Messages (<code className="font-mono">/v1/messages</code>) for the <strong>Claude Code CLI</strong>{' '}
           (terminal only — not the Claude Desktop Code tab), OpenAI Responses (
-          <code className="font-mono">/v1/responses</code>) for Codex, and Chat Completions for other clients — now with{' '}
-          vision: pasted images in Codex and image parts in chat
-          requests are routed to vision-capable models (Gemini, Llama 4, etc.). Add provider keys above, then paste your
-          unified key wherever you see <code className="font-mono">{KEY_PLACEHOLDER}</code>.
+          <code className="font-mono">/v1/responses</code>) for Codex, and Chat Completions (
+          <code className="font-mono">/v1/chat/completions</code>) for <strong>Continue in VS Code</strong> and other
+          OpenAI-compatible clients — now with vision: pasted images in Codex and image parts in chat requests are routed
+          to vision-capable models (Gemini, Llama 4, etc.). Add provider keys above, then paste your unified key wherever
+          you see <code className="font-mono">{KEY_PLACEHOLDER}</code>.
         </p>
       </div>
 
@@ -244,8 +268,69 @@ claude`}</CodeBlock>
       </IntegrationCard>
 
       <IntegrationCard
+        title="Continue (VS Code)"
+        subtitle="Continue extension — config.yaml with apiBase → local /v1/chat/completions"
+      >
+        <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
+          <li>
+            Install the{' '}
+            <a
+              href="https://marketplace.visualstudio.com/items?itemName=Continue.continue"
+              className="underline"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Continue
+            </a>{' '}
+            extension in VS Code (recommended in this repo&apos;s <code className="font-mono">.vscode/extensions.json</code>
+            ).
+          </li>
+          <li>Start FreeLLMAPI and add provider keys on this page.</li>
+          <li>Copy your unified key from the section above.</li>
+          <li>
+            Open Continue&apos;s config: chat input → configs dropdown (top right) → cog beside{' '}
+            <strong>Local Config</strong>, or edit{' '}
+            <code className="font-mono">{continueConfigPath}</code> directly.
+          </li>
+          <li>
+            Paste the YAML below, replace <code className="font-mono">{KEY_PLACEHOLDER}</code>, save, then reload the VS
+            Code window if the model does not appear (<code className="font-mono">Developer: Reload Window</code>).
+          </li>
+        </ol>
+        <p className="text-xs font-medium text-foreground">config.yaml</p>
+        <CodeBlock>{continueConfig}</CodeBlock>
+        <p className="text-xs text-muted-foreground">
+          <code className="font-mono">apiBase</code> must end with <code className="font-mono">/v1</code> (same as the
+          OpenAI SDK <code className="font-mono">base_url</code>). Use <code className="font-mono">model: auto</code> to
+          follow your dashboard fallback chain, or a slug from{' '}
+          <code className="font-mono">GET {openAiBase}/models</code> (e.g.{' '}
+          <code className="font-mono">gemini-2.5-flash</code>). <code className="font-mono">tool_use</code> enables
+          Continue Agent mode when your routed model supports tools.
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Verify: send a short chat message, then check <strong>Analytics → Usage log</strong> for a new row. Response
+          headers include <code className="font-mono">x-routed-via</code> with the provider/model that handled the
+          request. Continue uses Chat Completions only — it does not use Codex&apos;s{' '}
+          <code className="font-mono">/v1/responses</code> or Claude&apos;s{' '}
+          <code className="font-mono">/v1/messages</code>.
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Docs:{' '}
+          <a
+            href="https://docs.continue.dev/reference/"
+            className="underline"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            config.yaml reference
+          </a>
+          .
+        </p>
+      </IntegrationCard>
+
+      <IntegrationCard
         title="OpenAI SDK &amp; other Chat Completions clients"
-        subtitle="Cursor, Continue, custom apps — standard /v1/chat/completions"
+        subtitle="Cursor, custom apps — standard /v1/chat/completions"
       >
         <CodeBlock>{`from openai import OpenAI
 
