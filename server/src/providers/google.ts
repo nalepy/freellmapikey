@@ -254,6 +254,9 @@ export class GoogleProvider extends BaseProvider {
   ): Promise<ChatCompletionResponse> {
     const { contents, systemInstruction } = toGeminiContents(messages);
 
+    const geminiTools = toGeminiTools(options?.tools);
+    const toolConfig = geminiTools ? toGeminiToolConfig(options?.tool_choice) : undefined;
+
     const body: Record<string, unknown> = {
       contents,
       generationConfig: {
@@ -261,9 +264,9 @@ export class GoogleProvider extends BaseProvider {
         maxOutputTokens: options?.max_tokens,
         topP: options?.top_p,
       },
-      tools: toGeminiTools(options?.tools),
-      toolConfig: toGeminiToolConfig(options?.tool_choice),
     };
+    if (geminiTools) body.tools = geminiTools;
+    if (toolConfig) body.toolConfig = toolConfig;
     if (systemInstruction) body.systemInstruction = systemInstruction;
 
     const url = `${API_BASE}/models/${modelId}:generateContent?key=${apiKey}`;
@@ -317,6 +320,9 @@ export class GoogleProvider extends BaseProvider {
   ): AsyncGenerator<ChatCompletionChunk> {
     const { contents, systemInstruction } = toGeminiContents(messages);
 
+    const geminiTools = toGeminiTools(options?.tools);
+    const toolConfig = geminiTools ? toGeminiToolConfig(options?.tool_choice) : undefined;
+
     const body: Record<string, unknown> = {
       contents,
       generationConfig: {
@@ -324,9 +330,9 @@ export class GoogleProvider extends BaseProvider {
         maxOutputTokens: options?.max_tokens,
         topP: options?.top_p,
       },
-      tools: toGeminiTools(options?.tools),
-      toolConfig: toGeminiToolConfig(options?.tool_choice),
     };
+    if (geminiTools) body.tools = geminiTools;
+    if (toolConfig) body.toolConfig = toolConfig;
     if (systemInstruction) body.systemInstruction = systemInstruction;
 
     const url = `${API_BASE}/models/${modelId}:streamGenerateContent?alt=sse&key=${apiKey}`;

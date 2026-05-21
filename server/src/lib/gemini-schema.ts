@@ -4,17 +4,29 @@
  * that the API rejects with 400 "Unknown name".
  */
 
+/** JSON Schema keys OpenAI/Codex emit that Gemini function_declarations reject. */
 const STRIP_KEYS = new Set([
   'additionalProperties',
   'strict',
   '$schema',
   '$id',
+  '$ref',
   '$defs',
   'definitions',
   'patternProperties',
   'unevaluatedProperties',
   'additionalItems',
   'propertyNames',
+  'dependentRequired',
+  'dependentSchemas',
+  'const',
+  'default',
+  'exclusiveMinimum',
+  'exclusiveMaximum',
+  'minContains',
+  'maxContains',
+  'contentMediaType',
+  'contentEncoding',
 ]);
 
 function sanitizeNode(node: unknown): Record<string, unknown> {
@@ -62,6 +74,18 @@ function sanitizeNode(node: unknown): Record<string, unknown> {
   }
 
   return out;
+}
+
+/** Gemini 400s that repeat on every model when the same tool payload is retried. */
+export function isGeminiToolSchemaError(message: string): boolean {
+  const m = message.toLowerCase();
+  return (
+    m.includes('function calling config is set without function_declarations')
+    || (
+      (m.includes('invalid json payload') || m.includes('unknown name'))
+      && m.includes('function_declarations')
+    )
+  );
 }
 
 /** Prepare tool parameter JSON Schema for Gemini functionDeclarations. */

@@ -15,6 +15,7 @@ import {
   textFromMessageContent,
 } from '../lib/message-content.js';
 import { appendErrorLog, type ErrorLogEndpoint } from '../lib/error-log.js';
+import { isGeminiToolSchemaError } from '../lib/gemini-schema.js';
 import { routeRequest, recordRateLimitHit, recordSuccess, type RouteResult } from './router.js';
 import { recordRequest, recordTokens, setCooldown } from './ratelimit.js';
 
@@ -82,6 +83,9 @@ function setStickyModel(messages: ChatMessage[], modelDbId: number) {
 export function isRetryableProviderError(err: any): boolean {
   const msg = (err.message ?? '').toLowerCase();
   if (msg.includes('401') || msg.includes('403') || msg.includes('invalid api key')) {
+    return false;
+  }
+  if (isGeminiToolSchemaError(msg)) {
     return false;
   }
   return msg.includes('429') || msg.includes('rate limit') || msg.includes('too many requests')
