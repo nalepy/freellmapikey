@@ -27,6 +27,7 @@ const PLATFORMS: { value: Platform; label: string }[] = [
   { value: 'kilo', label: 'Kilo Gateway (anon ok)' },
   { value: 'pollinations', label: 'Pollinations (anon ok)' },
   { value: 'llm7', label: 'LLM7 (anon ok)' },
+  { value: 'bedrock', label: 'AWS Bedrock' },
 ]
 
 const statusDot: Record<string, string> = {
@@ -50,6 +51,8 @@ const PLATFORM_KEY_HELP: Partial<Record<Platform, string>> = {
     'Token from huggingface.co/settings/tokens with Inference Providers permission (hf_…).',
   together:
     'API key from api.together.ai/settings/api-keys. Prepaid credits — not an unlimited free tier.',
+  bedrock:
+    'IAM (like Cursor): region + Access Key ID + Secret Access Key. Or Bedrock API key only: leave Access Key ID empty and paste an ABSK… key from Amazon Bedrock → API keys. Enable model access in your region.',
 }
 
 interface HealthPlatform {
@@ -72,6 +75,7 @@ export default function KeysPage() {
   const [platform, setPlatform] = useState<Platform | ''>('')
   const [apiKey, setApiKey] = useState('')
   const [accountId, setAccountId] = useState('')
+  const [bedrockAccessKeyId, setBedrockAccessKeyId] = useState('')
   const [label, setLabel] = useState('')
 
   const { data: keys = [], isLoading } = useQuery<ApiKey[]>({
@@ -95,6 +99,7 @@ export default function KeysPage() {
       setPlatform('')
       setApiKey('')
       setAccountId('')
+      setBedrockAccessKeyId('')
       setLabel('')
     },
   })
@@ -124,12 +129,24 @@ export default function KeysPage() {
   })
 
   const needsAccountId = platform === 'cloudflare'
+  const needsBedrockRegion = platform === 'bedrock'
+  const needsCompoundKey = needsAccountId || needsBedrockRegion
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!platform || !apiKey) return
-    if (needsAccountId && !accountId) return
-    const key = needsAccountId ? `${accountId}:${apiKey}` : apiKey
+    if (needsCompoundKey && !accountId) return
+    if (needsBedrockRegion && bedrockAccessKeyId && !apiKey) return
+
+    let key = apiKey
+    if (needsAccountId) {
+      key = `${accountId}:${apiKey}`
+    } else if (needsBedrockRegion) {
+      key = bedrockAccessKeyId
+        ? `${accountId}:${bedrockAccessKeyId}:${apiKey}`
+        : `${accountId}:${apiKey}`
+    }
+
     addKey.mutate({ platform, key, label: label || undefined })
   }
 
@@ -179,25 +196,50 @@ export default function KeysPage() {
                 </p>
               )}
             </div>
-            {needsAccountId && (
+            {needsCompoundKey && (
               <div className="space-y-1.5">
-                <Label className="text-xs">Account ID</Label>
+                <Label className="text-xs">{needsBedrockRegion ? 'AWS region' : 'Account ID'}</Label>
                 <Input
                   value={accountId}
                   onChange={e => setAccountId(e.target.value)}
-                  placeholder="a1b2c3d4…"
+                  placeholder={needsBedrockRegion ? 'us-east-2' : 'a1b2c3d4…'}
                   className="w-[200px] font-mono text-xs"
                 />
               </div>
             )}
+            {needsBedrockRegion && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Access Key ID</Label>
+                <Input
+                  value={bedrockAccessKeyId}
+                  onChange={e => setBedrockAccessKeyId(e.target.value)}
+                  placeholder="AKIA… (IAM, optional)"
+                  className="w-[200px] font-mono text-xs"
+                  autoComplete="off"
+                />
+              </div>
+            )}
             <div className="space-y-1.5 flex-1 min-w-[240px]">
-              <Label className="text-xs">{needsAccountId ? 'API token' : 'API key'}</Label>
+              <Label className="text-xs">
+                {needsAccountId
+                  ? 'API token'
+                  : needsBedrockRegion
+                    ? (bedrockAccessKeyId ? 'Secret Access Key' : 'Bedrock API key or secret')
+                    : 'API key'}
+              </Label>
               <Input
                 type="password"
                 value={apiKey}
                 onChange={e => setApiKey(e.target.value)}
-                placeholder={needsAccountId ? 'Bearer token' : 'paste key here'}
+                placeholder={
+                  needsBedrockRegion
+                    ? (bedrockAccessKeyId ? 'secret key' : 'ABSK… or secret if using IAM')
+                    : needsAccountId
+                      ? 'Bearer token'
+                      : 'paste key here'
+                }
                 className="font-mono text-xs"
+                autoComplete="off"
               />
             </div>
             <div className="space-y-1.5">
@@ -209,7 +251,17 @@ export default function KeysPage() {
                 className="w-[160px]"
               />
             </div>
-            <Button type="submit" size="sm" disabled={!platform || !apiKey || (needsAccountId && !accountId) || addKey.isPending}>
+            <Button
+              type="submit"
+              size="sm"
+              disabled={
+                !platform
+                || !apiKey
+                || (needsCompoundKey && !accountId)
+                || (needsBedrockRegion && !!bedrockAccessKeyId && !apiKey)
+                || addKey.isPending
+              }
+            >
               {addKey.isPending ? 'Adding…' : 'Add key'}
             </Button>
           </form>

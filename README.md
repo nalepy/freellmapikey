@@ -2,11 +2,11 @@
 
 # FreeLLMAPIKey
 
-**One OpenAI-compatible endpoint. 17 integrated providers. ~1B+ tokens per month.**
+**One OpenAI-compatible endpoint. 18 integrated providers. ~1B+ tokens per month.**
 
 > **Fork notice:** This repo is **FreeLLMAPIKey** (`freellmapikey`), a renamed fork of [FreeLLMAPI](https://github.com/tashfeenahmed/freellmapi) by [Tashfeen Ahmed](https://github.com/tashfeenahmed). See [CREDITS.md](./CREDITS.md).
 
-Aggregate the free tiers from Google, Groq, Cerebras, SambaNova, NVIDIA, Mistral, OpenRouter, GitHub Models, Cohere, Cloudflare, Hugging Face, Together AI, and Z.ai (Zhipu) behind a single `/v1/chat/completions` endpoint. Keys are stored encrypted. A router picks the best available model for each request, falls over to the next provider when one is rate-limited, and tracks per-key usage so you stay under every free-tier cap.
+Aggregate the free tiers from Google, Groq, Cerebras, SambaNova, NVIDIA, Mistral, OpenRouter, GitHub Models, Cohere, Cloudflare, Hugging Face, Together AI, Z.ai (Zhipu), and AWS Bedrock behind a single `/v1/chat/completions` endpoint. Keys are stored encrypted. A router picks the best available model for each request, falls over to the next provider when one is rate-limited, and tracks per-key usage so you stay under every free-tier cap.
 
 [![CI](https://github.com/nalepy/freellmapikey/actions/workflows/ci.yml/badge.svg)](https://github.com/nalepy/freellmapikey/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
@@ -67,7 +67,8 @@ The problem is that stacking them by hand is painful: many different SDKs, rate 
 </tr>
 <tr>
 <td align="center"><a href="https://build.nvidia.com"><b>NVIDIA</b><br/>NIM (disabled by default)</a></td>
-<td colspan="3" align="center"><i>Adding another? See <a href="#contributing">Contributing</a>.</i></td>
+<td align="center"><a href="https://docs.aws.amazon.com/bedrock/latest/userguide/inference-chat-completions-mantle.html"><b>AWS Bedrock</b><br/>Claude · GPT-OSS (IAM or API key)</a></td>
+<td colspan="2" align="center"><i>Adding another? See <a href="#contributing">Contributing</a>.</i></td>
 </tr>
 </table>
 
@@ -122,12 +123,13 @@ npm run dev
 
 Open http://localhost:5173 (the Vite dev UI), add your provider keys on the **Keys** page, reorder the **Fallback Chain** to taste, and grab your unified API key from **Keys** or **Guides**. Use **Guides** for VS Code (Continue, Cline), Claude Code CLI, Codex, and OpenAI-compatible clients — each integration has **configure local proxy** and **restore factory** sections where relevant.
 
-**Hugging Face & Together AI**
+**Hugging Face, Together AI & AWS Bedrock**
 
 | Provider | Where to get a key | Notes |
 | --- | --- | --- |
 | Hugging Face | [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens) | Create a token with **Inference Providers** permission (`hf_…`). Routed via `https://router.huggingface.co/v1`. |
 | Together AI | [api.together.ai/settings/api-keys](https://api.together.ai/settings/api-keys) | Prepaid credits (often a $5 minimum top-up). OpenAI-compatible serverless models. |
+| AWS Bedrock | [Bedrock console → API keys](https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html) or IAM | On the **Keys** page: **Region** + **Access Key ID** + **Secret Access Key** (same as Cursor), *or* Region + a **Bedrock API key** (`ABSK…`) with Access Key ID left empty. IAM uses SigV4 on `bedrock-runtime`; API keys use Bearer on `bedrock-mantle`. Enable model access in your region; billed via AWS (credits / on-demand), not a standing free tier. |
 
 For a production build:
 
@@ -222,7 +224,7 @@ final = client.chat.completions.create(
 print(final.choices[0].message.content)
 ```
 
-Works with `stream=True` as well — you'll get `delta.tool_calls` chunks followed by a `finish_reason: "tool_calls"` close. Under the hood, OpenAI-compatible providers (Groq, Cerebras, SambaNova, Mistral, OpenRouter, GitHub Models, Hugging Face, Together AI, Cloudflare, Cohere compat) get the request passed through; Gemini requests get translated into Google's `functionDeclarations` / `functionResponse` shape and the response is translated back.
+Works with `stream=True` as well — you'll get `delta.tool_calls` chunks followed by a `finish_reason: "tool_calls"` close. Under the hood, OpenAI-compatible providers (Groq, Cerebras, SambaNova, Mistral, OpenRouter, GitHub Models, Hugging Face, Together AI, Cloudflare, AWS Bedrock, Cohere compat) get the request passed through; Gemini requests get translated into Google's `functionDeclarations` / `functionResponse` shape and the response is translated back.
 
 Every response carries an `X-Routed-Via: <platform>/<model>` header so you can see which provider actually served each call. If a request fell over between providers, you'll also see `X-Fallback-Attempts: N`.
 
@@ -382,7 +384,7 @@ API: `GET /api/analytics/usage-log?range=7d&limit=100` (same `range` as other an
                                           │
    ┌──────────────┬────────────┬──────────┴─────────┬─────────────┬──────────┐
    ▼              ▼            ▼                    ▼             ▼          ▼
- Google         Groq        Cerebras           OpenRouter   Hugging Face  Together AI  …more
+ Google         Groq        Cerebras           OpenRouter   Hugging Face  Together AI  Bedrock  …more
 ```
 
 - **Router** (`server/src/services/router.ts`) — picks a model per request.
@@ -400,7 +402,7 @@ Stacking free tiers has real trade-offs. Be honest with yourself about them:
 - **Intelligence degrades as the day progresses.** Your top-ranked models (usually Gemini 2.5 Pro, GPT-4o via GitHub Models) have the lowest daily caps. Once they hit their limits, the router falls down your priority chain to smaller/weaker models. Expect the effective intelligence of the endpoint to drop in the late hours of each day — then reset at UTC midnight.
 - **Latency is highly variable.** Cerebras and Groq are extremely fast; others are not. You get whichever one is available.
 - **Free tiers can change without notice.** Providers regularly tighten, loosen, or remove free tiers. When that happens you'll see 429s or auth errors until you update the catalog. Re-seed scripts live in `server/src/scripts/`.
-- **Credit-based providers.** Hugging Face Inference Providers and Together AI use small prepaid credit pools (not unlimited monthly free RPM like Groq). Budget rows in the dashboard reflect that.
+- **Credit-based providers.** Hugging Face Inference Providers and Together AI use small prepaid credit pools (not unlimited monthly free RPM like Groq). AWS Bedrock bills through your AWS account (new-account credits or on-demand). Budget rows in the dashboard reflect that.
 - **No SLA, by definition.** If you need reliability, use a paid provider with a contract.
 - **Local-first.** There's no multi-tenant auth. Run this for yourself; don't expose it to the internet.
 
@@ -457,6 +459,7 @@ A self-hosted, single-user, personal-use setup was re-reviewed against each prov
 | Ollama Cloud | ✅ Likely OK | Free plan permits cloud-model access (1 concurrent, 5-hour session caps). No anti-proxy / anti-resale clauses found. |
 | Hugging Face | ⚠️ Caution | Inference Providers credits (~$0.10/mo free tier); routed via `router.huggingface.co` OpenAI API. Legacy Fireworks-route model removed in V4 (broken tool calls). |
 | Together AI | ⚠️ Caution | Prepaid credits only ($5 minimum purchase since July 2025); signup promos may apply. Serverless API permits customer-application integration. |
+| AWS Bedrock | ⚠️ Caution | Not a recurring free tier — AWS account billing. OpenAI-compatible Chat Completions via [Bedrock Mantle / Runtime](https://docs.aws.amazon.com/bedrock/latest/userguide/inference-chat-completions-mantle.html). Personal proxy use is fine if you comply with AWS Service Terms and enable only models you have rights to invoke. |
 
 Rules of thumb that keep most providers happy: **one account per provider**, **no reselling**, **no sharing your endpoint with other humans**, **don't hammer a free tier as a paid production backend**. This is informational, not legal advice — read each provider's ToS and make your own call.
 

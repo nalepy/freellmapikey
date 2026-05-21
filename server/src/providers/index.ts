@@ -4,6 +4,7 @@ import { GoogleProvider } from './google.js';
 import { OpenAICompatProvider } from './openai-compat.js';
 import { CohereProvider } from './cohere.js';
 import { CloudflareProvider } from './cloudflare.js';
+import { BedrockProvider } from './bedrock.js';
 
 const providers = new Map<Platform, BaseProvider>();
 
@@ -74,6 +75,9 @@ register(new CohereProvider());
 
 // Cloudflare Workers AI - OpenAI-compatible endpoint (key = "account_id:token")
 register(new CloudflareProvider());
+
+// AWS Bedrock — OpenAI-compatible Bedrock Mantle (key = "region:bedrock_api_key")
+register(new BedrockProvider());
 
 // Zhipu (Z.ai / bigmodel.cn) - OpenAI-compatible
 register(new OpenAICompatProvider({

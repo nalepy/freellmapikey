@@ -159,7 +159,7 @@ export class OpenAICompatProvider extends BaseProvider {
  * Other providers (Mistral magistral-medium) return `message.content` as an
  * array of text segments instead of a string. Flatten to string.
  */
-function normalizeStreamChunk(chunk: ChatCompletionChunk): ChatCompletionChunk {
+export function normalizeStreamChunk(chunk: ChatCompletionChunk): ChatCompletionChunk {
   for (const choice of chunk.choices ?? []) {
     const delta = choice.delta;
     if (!delta || delta.content == null) continue;
@@ -175,7 +175,7 @@ function normalizeStreamChunk(chunk: ChatCompletionChunk): ChatCompletionChunk {
   return chunk;
 }
 
-function normalizeChoices(data: ChatCompletionResponse): void {
+export function normalizeChoices(data: ChatCompletionResponse): void {
   for (const choice of data.choices ?? []) {
     const msg = choice.message as ChatMessage & {
       reasoning_content?: string;

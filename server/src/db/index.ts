@@ -48,6 +48,8 @@ export function initDb(dbPath?: string): Database.Database {
   migrateModelsV11(db);
   migrateModelsV13(db);
   migrateModelsV14(db);
+  migrateModelsV15(db);
+  migrateModelsV16(db);
   migrateSchemaV12(db);
   ensureUnifiedKey(db);
 
@@ -1004,6 +1006,64 @@ function migrateModelsV14(db: Database.Database) {
     ['together', 'openai/gpt-oss-20b',                         'GPT-OSS 20B (Together)',        18, 8, 'Medium', null, null, null, null, '~promo credits', 128000],
     ['together', 'meta-llama/Llama-3.3-70B-Instruct-Turbo',    'Llama 3.3 70B (Together)',      17, 8, 'Medium', null, null, null, null, '~promo credits', 131072],
     ['together', 'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo', 'Llama 3.1 8B (Together)',     28, 8, 'Small',  null, null, null, null, '~promo credits', 131072],
+  ];
+
+  const apply = db.transaction(() => {
+    for (const a of additions) insert.run(...a);
+    const missing = db.prepare(`
+      SELECT m.id FROM models m
+      LEFT JOIN fallback_config f ON m.id = f.model_db_id
+      WHERE f.id IS NULL ORDER BY m.intelligence_rank ASC
+    `).all() as { id: number }[];
+    if (missing.length > 0) {
+      const maxPriority = (db.prepare('SELECT COALESCE(MAX(priority), 0) AS mx FROM fallback_config').get() as { mx: number }).mx;
+      const addFb = db.prepare('INSERT INTO fallback_config (model_db_id, priority, enabled) VALUES (?, ?, 1)');
+      for (let i = 0; i < missing.length; i++) addFb.run(missing[i].id, maxPriority + i + 1);
+    }
+  });
+  apply();
+}
+
+/**
+ * V15: AWS Bedrock OpenAI-compatible Mantle endpoint (bedrock-mantle.{region}.api.aws/v1).
+ * Requires a Bedrock API key and model access in the target region — billed via AWS
+ * (new-account credits / on-demand), not a standing free tier like Groq.
+ */
+function migrateModelsV15(db: Database.Database) {
+  const insert = db.prepare(`
+    INSERT OR IGNORE INTO models (platform, model_id, display_name, intelligence_rank, speed_rank, size_label, rpm_limit, rpd_limit, tpm_limit, tpd_limit, monthly_token_budget, context_window)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const additions: Array<[string, string, string, number, number, string, number | null, number | null, number | null, number | null, string, number | null]> = [
+    ['bedrock', 'openai.gpt-oss-120b',     'GPT-OSS 120B (Bedrock)', 6,  8, 'Frontier', null, null, null, null, '~AWS credits', 128000],
+    ['bedrock', 'openai.gpt-oss-20b-1:0',  'GPT-OSS 20B (Bedrock)',  18, 9, 'Medium',   null, null, null, null, '~AWS credits', 128000],
+  ];
+
+  const apply = db.transaction(() => {
+    for (const a of additions) insert.run(...a);
+    const missing = db.prepare(`
+      SELECT m.id FROM models m
+      LEFT JOIN fallback_config f ON m.id = f.model_db_id
+      WHERE f.id IS NULL ORDER BY m.intelligence_rank ASC
+    `).all() as { id: number }[];
+    if (missing.length > 0) {
+      const maxPriority = (db.prepare('SELECT COALESCE(MAX(priority), 0) AS mx FROM fallback_config').get() as { mx: number }).mx;
+      const addFb = db.prepare('INSERT INTO fallback_config (model_db_id, priority, enabled) VALUES (?, ?, 1)');
+      for (let i = 0; i < missing.length; i++) addFb.run(missing[i].id, maxPriority + i + 1);
+    }
+  });
+  apply();
+}
+
+/** V16: Bedrock Claude models (bedrock-runtime / IAM); requires model access in AWS console. */
+function migrateModelsV16(db: Database.Database) {
+  const insert = db.prepare(`
+    INSERT OR IGNORE INTO models (platform, model_id, display_name, intelligence_rank, speed_rank, size_label, rpm_limit, rpd_limit, tpm_limit, tpd_limit, monthly_token_budget, context_window)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const additions: Array<[string, string, string, number, number, string, number | null, number | null, number | null, number | null, string, number | null]> = [
+    ['bedrock', 'us.anthropic.claude-sonnet-4-6', 'Claude Sonnet 4.6 (Bedrock)', 4,  7, 'Frontier', null, null, null, null, '~AWS credits', 200000],
+    ['bedrock', 'us.anthropic.claude-haiku-4-5-20251001-v1:0', 'Claude Haiku 4.5 (Bedrock)', 20, 8, 'Medium', null, null, null, null, '~AWS credits', 200000],
   ];
 
   const apply = db.transaction(() => {

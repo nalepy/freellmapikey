@@ -11,7 +11,10 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@aws-crypto/sha256-js": "^5.2.0",
+    "@aws-sdk/signature-v4": "^3.370.0",
     "@freellmapikey/shared": "*",
+    "@smithy/protocol-http": "^5.4.4",
     "better-sqlite3": "^12.4.1",
     "cors": "^2.8.5",
     "dotenv": "^17.4.2",
