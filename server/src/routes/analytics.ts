@@ -6,6 +6,23 @@ import { modelSupportsVision } from '../lib/message-content.js';
 
 export const analyticsRouter = Router();
 
+/** Shared with error-log categories; used in SQL CASE for analytics charts. */
+const ERROR_CATEGORY_CASE = `
+  CASE
+    WHEN error LIKE '%429%' OR error LIKE '%rate limit%' OR error LIKE '%too many%' OR error LIKE '%quota%' THEN 'Rate Limited (429)'
+    WHEN error LIKE '%400%' OR error LIKE '%bad request%' OR error LIKE '%could not process%'
+      OR error LIKE '%invalid json payload%' OR error LIKE '%unknown name%' THEN 'Bad Request (400)'
+    WHEN error LIKE '%422%' OR error LIKE '%unprocessable%' THEN 'Unprocessable (422)'
+    WHEN error LIKE '%401%' OR error LIKE '%unauthorized%' OR error LIKE '%invalid%key%' THEN 'Auth Error (401)'
+    WHEN error LIKE '%403%' OR error LIKE '%forbidden%' THEN 'Forbidden (403)'
+    WHEN error LIKE '%404%' OR error LIKE '%not found%' THEN 'Not Found (404)'
+    WHEN error LIKE '%timeout%' OR error LIKE '%ETIMEDOUT%' OR error LIKE '%ECONNREFUSED%' THEN 'Timeout/Connection'
+    WHEN error LIKE '%500%' OR error LIKE '%internal server%' THEN 'Server Error (500)'
+    WHEN error LIKE '%502%' OR error LIKE '%bad gateway%' THEN 'Bad Gateway (502)'
+    WHEN error LIKE '%503%' OR error LIKE '%unavailable%' THEN 'Unavailable (503)'
+    ELSE 'Other'
+  END`;
+
 // Map range to a JS-computed ISO timestamp passed as a bind parameter,
 // so the SQL string never includes user-controlled fragments.
 function getSinceTimestamp(range: string): string {
@@ -163,16 +180,7 @@ analyticsRouter.get('/error-distribution', (req: Request, res: Response) => {
     SELECT
       platform,
       model_id,
-      CASE
-        WHEN error LIKE '%429%' OR error LIKE '%rate limit%' OR error LIKE '%too many%' OR error LIKE '%quota%' THEN 'Rate Limited (429)'
-        WHEN error LIKE '%401%' OR error LIKE '%unauthorized%' OR error LIKE '%invalid.*key%' THEN 'Auth Error (401)'
-        WHEN error LIKE '%403%' OR error LIKE '%forbidden%' THEN 'Forbidden (403)'
-        WHEN error LIKE '%404%' OR error LIKE '%not found%' THEN 'Not Found (404)'
-        WHEN error LIKE '%timeout%' OR error LIKE '%ETIMEDOUT%' OR error LIKE '%ECONNREFUSED%' THEN 'Timeout/Connection'
-        WHEN error LIKE '%500%' OR error LIKE '%internal server%' THEN 'Server Error (500)'
-        WHEN error LIKE '%503%' OR error LIKE '%unavailable%' THEN 'Unavailable (503)'
-        ELSE 'Other'
-      END as error_category,
+      ${ERROR_CATEGORY_CASE} as error_category,
       COUNT(*) as count
     FROM requests
     WHERE status = 'error' AND created_at >= ?
@@ -183,16 +191,7 @@ analyticsRouter.get('/error-distribution', (req: Request, res: Response) => {
   // Also get totals by category
   const byCategory = db.prepare(`
     SELECT
-      CASE
-        WHEN error LIKE '%429%' OR error LIKE '%rate limit%' OR error LIKE '%too many%' OR error LIKE '%quota%' THEN 'Rate Limited (429)'
-        WHEN error LIKE '%401%' OR error LIKE '%unauthorized%' OR error LIKE '%invalid.*key%' THEN 'Auth Error (401)'
-        WHEN error LIKE '%403%' OR error LIKE '%forbidden%' THEN 'Forbidden (403)'
-        WHEN error LIKE '%404%' OR error LIKE '%not found%' THEN 'Not Found (404)'
-        WHEN error LIKE '%timeout%' OR error LIKE '%ETIMEDOUT%' OR error LIKE '%ECONNREFUSED%' THEN 'Timeout/Connection'
-        WHEN error LIKE '%500%' OR error LIKE '%internal server%' THEN 'Server Error (500)'
-        WHEN error LIKE '%503%' OR error LIKE '%unavailable%' THEN 'Unavailable (503)'
-        ELSE 'Other'
-      END as category,
+      ${ERROR_CATEGORY_CASE} as category,
       COUNT(*) as count
     FROM requests
     WHERE status = 'error' AND created_at >= ?

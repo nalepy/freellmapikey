@@ -35,8 +35,15 @@ export function formatLocalDateTime(value: string): string {
   })
 }
 
+/** Daily timeline buckets are civil dates (YYYY-MM-DD), not UTC midnight. */
+function parseTimelineDayBucket(value: string): Date {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim())
+  if (!m) return parseApiTimestamp(value)
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+}
+
 export function formatTimelineLabel(value: string, hourly: boolean): string {
-  const d = parseApiTimestamp(value)
+  const d = hourly ? parseApiTimestamp(value) : parseTimelineDayBucket(value)
   if (Number.isNaN(d.getTime())) return value
   if (hourly) {
     return d.toLocaleString(undefined, {

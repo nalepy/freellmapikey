@@ -293,6 +293,31 @@ export default function AnalyticsPage() {
             </Panel>
           </div>
 
+          <Panel title="Error distribution">
+            {!errorDist?.byCategory?.length ? (
+              <p className="text-sm text-muted-foreground text-center py-8">No errors</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={errorDist.byCategory} margin={{ top: 6, right: 6, left: -12, bottom: 48 }}>
+                  <CartesianGrid strokeDasharray="2 4" stroke={gridStyle} />
+                  <XAxis
+                    dataKey="category"
+                    tick={axisStyle}
+                    tickLine={false}
+                    axisLine={{ stroke: gridStyle }}
+                    interval={0}
+                    angle={-28}
+                    textAnchor="end"
+                    height={56}
+                  />
+                  <YAxis tick={axisStyle} tickLine={false} axisLine={false} allowDecimals={false} />
+                  <Tooltip contentStyle={{ backgroundColor: 'var(--popover)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }} />
+                  <Bar dataKey="count" fill="var(--destructive)" radius={[3, 3, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </Panel>
+
           <Panel title="Errors by provider">
             {!errorDist?.byPlatform?.length ? (
               <p className="text-sm text-muted-foreground text-center py-8">No errors</p>
