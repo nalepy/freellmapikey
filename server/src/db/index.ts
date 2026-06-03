@@ -50,6 +50,7 @@ export function initDb(dbPath?: string): Database.Database {
   migrateModelsV14(db);
   migrateModelsV15(db);
   migrateModelsV16(db);
+  migrateModelsV17Embeddings(db);
   migrateSchemaV12(db);
   ensureUnifiedKey(db);
 
@@ -1068,6 +1069,41 @@ function migrateModelsV16(db: Database.Database) {
 
   const apply = db.transaction(() => {
     for (const a of additions) insert.run(...a);
+    const missing = db.prepare(`
+      SELECT m.id FROM models m
+      LEFT JOIN fallback_config f ON m.id = f.model_db_id
+      WHERE f.id IS NULL ORDER BY m.intelligence_rank ASC
+    `).all() as { id: number }[];
+    if (missing.length > 0) {
+      const maxPriority = (db.prepare('SELECT COALESCE(MAX(priority), 0) AS mx FROM fallback_config').get() as { mx: number }).mx;
+      const addFb = db.prepare('INSERT INTO fallback_config (model_db_id, priority, enabled) VALUES (?, ?, 1)');
+      for (let i = 0; i < missing.length; i++) addFb.run(missing[i].id, maxPriority + i + 1);
+    }
+  });
+  apply();
+}
+
+/**
+ * V17: Add embedding-only model rows so the UI can display them and the
+ * /v1/embeddings route can resolve "auto" → a seeded model.
+ * These rows won't appear in /v1/models (embedding-only, no chat use),
+ * but are stored for reference. Enabled = 0 prevents them from entering
+ * the chat fallback chain.
+ */
+function migrateModelsV17Embeddings(db: Database.Database) {
+  const insert = db.prepare(`
+    INSERT OR IGNORE INTO models (platform, model_id, display_name, intelligence_rank, speed_rank, size_label, rpm_limit, rpd_limit, tpm_limit, tpd_limit, monthly_token_budget, context_window, enabled)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+  `);
+  const apply = db.transaction(() => {
+    // Google text-embedding-004: 768 dims, free tier 1500 req/min, 1M chars/day
+    insert.run('google', 'text-embedding-004', 'Text Embedding 004', 99, 99, 'Embedding', 1500, null, null, null, '~1M chars/day', null);
+    // Google text-multilingual-embedding-002: 768 dims, free tier
+    insert.run('google', 'text-multilingual-embedding-002', 'Text Multilingual Embedding 002', 99, 99, 'Embedding', 1500, null, null, null, '~1M chars/day', null);
+    // Mistral mistral-embed: 1024 dims, free experiment tier
+    insert.run('mistral', 'mistral-embed', 'Mistral Embed', 99, 99, 'Embedding', 2, null, 500000, null, '~50-100M', null);
+
+    // Ensure every model row has a fallback_config entry (idempotency requirement)
     const missing = db.prepare(`
       SELECT m.id FROM models m
       LEFT JOIN fallback_config f ON m.id = f.model_db_id

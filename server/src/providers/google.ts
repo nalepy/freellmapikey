@@ -6,6 +6,7 @@ import type {
   ChatToolCall,
   ChatToolChoice,
   ChatToolDefinition,
+  EmbeddingsResponse,
   TokenUsage,
 } from '@freellmapikey/shared/types.js';
 import { sanitizeGeminiParametersSchema } from '../lib/gemini-schema.js';
@@ -245,6 +246,7 @@ function extractText(parts: GeminiPart[] | undefined): string | null {
 export class GoogleProvider extends BaseProvider {
   readonly platform = 'google' as const;
   readonly name = 'Google AI Studio';
+  readonly supportsEmbeddings = true;
 
   async chatCompletion(
     apiKey: string,
@@ -457,6 +459,77 @@ export class GoogleProvider extends BaseProvider {
         }],
       };
     }
+  }
+
+  async embeddings(
+    apiKey: string,
+    input: string[],
+    modelId: string,
+    options?: { dimensions?: number },
+  ): Promise<EmbeddingsResponse> {
+    if (input.length === 1) {
+      const body: Record<string, unknown> = {
+        model: `models/${modelId}`,
+        content: { parts: [{ text: input[0] }] },
+      };
+      if (options?.dimensions) body.outputDimensionality = options.dimensions;
+
+      const url = `${API_BASE}/models/${modelId}:embedContent?key=${apiKey}`;
+      const res = await this.fetchWithTimeout(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(`Google API error ${res.status}: ${(err as any).error?.message ?? res.statusText}`);
+      }
+
+      const data = await res.json() as { embedding?: { values?: number[] } };
+      if (!data.embedding?.values) {
+        throw new Error(`Google API error: unexpected embedContent response shape`);
+      }
+      return {
+        object: 'list',
+        data: [{ object: 'embedding', embedding: data.embedding.values, index: 0 }],
+        model: modelId,
+        usage: { prompt_tokens: 0, total_tokens: 0 },
+      };
+    }
+
+    const requests = input.map(text => {
+      const req: Record<string, unknown> = {
+        model: `models/${modelId}`,
+        content: { parts: [{ text }] },
+      };
+      if (options?.dimensions) req.outputDimensionality = options.dimensions;
+      return req;
+    });
+
+    const url = `${API_BASE}/models/${modelId}:batchEmbedContents?key=${apiKey}`;
+    const res = await this.fetchWithTimeout(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requests }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(`Google API error ${res.status}: ${(err as any).error?.message ?? res.statusText}`);
+    }
+
+    const data = await res.json() as { embeddings: Array<{ values: number[] }> };
+    return {
+      object: 'list',
+      data: data.embeddings.map((e, index) => ({
+        object: 'embedding' as const,
+        embedding: e.values,
+        index,
+      })),
+      model: modelId,
+      usage: { prompt_tokens: 0, total_tokens: 0 },
+    };
   }
 
   async validateKey(apiKey: string): Promise<boolean> {

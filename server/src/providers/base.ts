@@ -4,6 +4,7 @@ import type {
   ChatCompletionChunk,
   ChatToolDefinition,
   ChatToolChoice,
+  EmbeddingsResponse,
   Platform,
 } from '@freellmapikey/shared/types.js';
 
@@ -36,6 +37,15 @@ export abstract class BaseProvider {
   ): AsyncGenerator<ChatCompletionChunk>;
 
   abstract validateKey(apiKey: string): Promise<boolean>;
+
+  declare readonly supportsEmbeddings?: boolean;
+
+  embeddings?(
+    apiKey: string,
+    input: string[],
+    modelId: string,
+    options?: { dimensions?: number },
+  ): Promise<EmbeddingsResponse>;
 
   protected async fetchWithTimeout(
     url: string,

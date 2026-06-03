@@ -2,6 +2,7 @@ import type {
   ChatMessage,
   ChatCompletionResponse,
   ChatCompletionChunk,
+  EmbeddingsResponse,
   Platform,
 } from '@freellmapikey/shared/types.js';
 import { BaseProvider, type CompletionOptions } from './base.js';
@@ -21,6 +22,11 @@ export class OpenAICompatProvider extends BaseProvider {
   /** Per-provider HTTP timeout override. Cloud APIs finish in ~15s; locally-hosted
    * inference (llama.cpp / vLLM on CPU) can take 30-120s for long prompts. Default 15000. */
   private readonly timeoutMs: number;
+  private readonly embeddingModels?: string[];
+
+  get supportsEmbeddings(): boolean {
+    return (this.embeddingModels?.length ?? 0) > 0;
+  }
 
   constructor(opts: {
     platform: Platform;
@@ -29,6 +35,7 @@ export class OpenAICompatProvider extends BaseProvider {
     extraHeaders?: Record<string, string>;
     validateUrl?: string;
     timeoutMs?: number;
+    embeddingModels?: string[];
   }) {
     super();
     this.platform = opts.platform;
@@ -37,6 +44,7 @@ export class OpenAICompatProvider extends BaseProvider {
     this.extraHeaders = opts.extraHeaders ?? {};
     this.validateUrl = opts.validateUrl;
     this.timeoutMs = opts.timeoutMs ?? 15000;
+    this.embeddingModels = opts.embeddingModels;
   }
 
   async chatCompletion(
@@ -132,6 +140,47 @@ export class OpenAICompatProvider extends BaseProvider {
         }
       }
     }
+  }
+
+  async embeddings(
+    apiKey: string,
+    input: string[],
+    modelId: string,
+    _options?: { dimensions?: number },
+  ): Promise<EmbeddingsResponse> {
+    const res = await this.fetchWithTimeout(`${this.baseUrl}/embeddings`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        ...this.extraHeaders,
+      },
+      body: JSON.stringify({ model: modelId, input }),
+    }, this.timeoutMs);
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(`${this.name} API error ${res.status}: ${(err as any).error?.message ?? res.statusText}`);
+    }
+
+    const data = await res.json() as {
+      data: Array<{ embedding: number[]; index: number; object: string }>;
+      usage?: { prompt_tokens?: number; total_tokens?: number };
+      model?: string;
+    };
+    return {
+      object: 'list',
+      data: data.data.map(d => ({
+        object: 'embedding' as const,
+        embedding: d.embedding,
+        index: d.index,
+      })),
+      model: data.model ?? modelId,
+      usage: {
+        prompt_tokens: data.usage?.prompt_tokens ?? 0,
+        total_tokens: data.usage?.total_tokens ?? 0,
+      },
+    };
   }
 
   async validateKey(apiKey: string): Promise<boolean> {

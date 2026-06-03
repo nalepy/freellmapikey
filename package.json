@@ -1,11 +1,29 @@
 {
   "name": "freellmapikey",
-  "private": true,
-  "workspaces": [
-    "shared",
-    "server",
-    "client"
+  "version": "1.0.0",
+  "description": "One OpenAI-compatible endpoint. 18 free-tier providers. ~1.3B tokens/month.",
+  "private": false,
+  "bin": {
+    "freellmapikey": "./bin/cli.mjs"
+  },
+  "files": [
+    "bin/",
+    "README.md",
+    "LICENSE"
   ],
+  "keywords": [
+    "llm", "openai", "proxy", "free", "gemini", "claude", "codex", "embeddings"
+  ],
+  "homepage": "https://github.com/nalepy/freellmapikey",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nalepy/freellmapikey.git"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "workspaces": ["shared", "server", "client"],
   "scripts": {
     "dev": "concurrently \"npm run dev -w server\" \"npm run dev -w client\"",
     "test": "npm run test -w server && npm run test -w client",

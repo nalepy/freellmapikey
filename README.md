@@ -31,6 +31,8 @@ FreeLLMAPIKey is based on [**FreeLLMAPI**](https://github.com/tashfeenahmed/free
 - [Not yet supported](#not-yet-supported)
 - [Quick start](#quick-start)
 - [Using the API](#using-the-api)
+  - [Chat completions](#chat-completions)
+  - [Embeddings](#embeddings)
 - [Screenshots](#screenshots)
 - [How it works](#how-it-works)
 - [Limitations](#limitations)
@@ -75,6 +77,7 @@ The problem is that stacking them by hand is painful: many different SDKs, rate 
 ## Features
 
 - **OpenAI-compatible** — `POST /v1/chat/completions` and `GET /v1/models` work with the official OpenAI SDKs and any OpenAI-compatible client (LangChain, LlamaIndex, Continue, Hermes, etc.). Just change `base_url`.
+- **Embeddings** — `POST /v1/embeddings` routes through Google (`text-embedding-004`, 768 dims, 1500 RPM free) and Mistral (`mistral-embed`, 1024 dims) with the same auto-fallback logic as chat. Works with `model: "auto"` or a specific model name. OpenAI-compatible response shape.
 - **Responses API (Codex)** — `POST /v1/responses` with streaming SSE; **Guides** walk through local Codex `config.toml` and factory rollback.
 - **Anthropic-compatible** — `POST /v1/messages` and `POST /v1/messages/count_tokens` for Claude Code CLI; **Guides** include local `ANTHROPIC_BASE_URL` setup and factory restore.
 - **Streaming and non-streaming** — Server-Sent Events for `stream: true`, JSON response otherwise. Every provider adapter implements both.
@@ -94,7 +97,6 @@ The problem is that stacking them by hand is painful: many different SDKs, rate 
 
 The scope is deliberately narrow. If a feature isn't on this list and isn't below, assume it isn't there yet.
 
-- **Embeddings** (`/v1/embeddings`)
 - **Image generation** (`/v1/images/*`)
 - **Audio / speech** (`/v1/audio/*`)
 - **Legacy completions** (`/v1/completions`) — only the chat endpoint is implemented
@@ -105,6 +107,16 @@ The scope is deliberately narrow. If a feature isn't on this list and isn't belo
 PRs that add any of these are very welcome. See [Contributing](#contributing).
 
 ## Quick start
+
+**Option A — zero-config npx (no git clone needed)**
+
+```bash
+npx freellmapikey
+```
+
+The CLI clones the repo into `~/.freellmapikey`, runs `npm install && npm run build`, and starts the server on `:3001`. On subsequent runs it skips setup and goes straight to start. Subcommands: `setup`, `start`, `update`.
+
+**Option B — clone and run**
 
 **Prerequisites:** Node.js 20+, npm.
 
@@ -141,6 +153,8 @@ node server/dist/index.js     # server + dashboard both served on :3001
 ## Using the API
 
 Any OpenAI-compatible client works. Examples:
+
+### Chat completions
 
 **Python**
 
@@ -227,6 +241,46 @@ print(final.choices[0].message.content)
 Works with `stream=True` as well — you'll get `delta.tool_calls` chunks followed by a `finish_reason: "tool_calls"` close. Under the hood, OpenAI-compatible providers (Groq, Cerebras, SambaNova, Mistral, OpenRouter, GitHub Models, Hugging Face, Together AI, Cloudflare, AWS Bedrock, Cohere compat) get the request passed through; Gemini requests get translated into Google's `functionDeclarations` / `functionResponse` shape and the response is translated back.
 
 Every response carries an `X-Routed-Via: <platform>/<model>` header so you can see which provider actually served each call. If a request fell over between providers, you'll also see `X-Fallback-Attempts: N`.
+
+### Embeddings
+
+`POST /v1/embeddings` — OpenAI-compatible. Routes through Google (`text-embedding-004`, 768 dims) and Mistral (`mistral-embed`, 1024 dims). Add a Google AI Studio key and/or a Mistral key on the **Keys** page to enable it.
+
+| Model | Platform | Dims | Free limit |
+|---|---|---|---|
+| `text-embedding-004` | Google | 768 | 1500 RPM, ~1M chars/day |
+| `text-multilingual-embedding-002` | Google | 768 | 1500 RPM, ~1M chars/day |
+| `mistral-embed` | Mistral | 1024 | 2 RPM, 500k TPM (experiment tier) |
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="http://localhost:3001/v1",
+    api_key="freellmapikey-your-unified-key",
+)
+
+# Single string — routed to Google text-embedding-004 by default
+resp = client.embeddings.create(model="auto", input="Hello, world")
+print(len(resp.data[0].embedding))  # 768
+
+# Batch
+resp = client.embeddings.create(
+    model="text-embedding-004",
+    input=["first doc", "second doc"],
+)
+for item in resp.data:
+    print(item.index, len(item.embedding))
+```
+
+```bash
+curl http://localhost:3001/v1/embeddings \
+  -H "Authorization: Bearer freellmapikey-your-unified-key" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "auto", "input": "Hello, world"}'
+```
+
+Routing priority: `model="auto"` (or omitted) tries Google first, then Mistral. A specific Google model name (`text-embedding-*`, `text-multilingual-*`) goes straight to Google; `mistral-embed` goes straight to Mistral. If the first provider has no healthy key or is on cooldown after a 429, the route falls through to the next one automatically.
 
 **Claude Code (CLI — local proxy or factory)**
 
@@ -389,7 +443,7 @@ API: `GET /api/analytics/usage-log?range=7d&limit=100` (same `range` as other an
 
 - **Router** (`server/src/services/router.ts`) — picks a model per request.
 - **Rate-limit ledger** (`server/src/services/ratelimit.ts`) — in-memory RPM/RPD/TPM/TPD counters backed by SQLite, with cooldowns on 429s.
-- **Provider adapters** (`server/src/providers/*.ts`) — one file per provider, implementing the `Provider` base class: `chatCompletion()` and `streamChatCompletion()`.
+- **Provider adapters** (`server/src/providers/*.ts`) — one file per provider, implementing the `BaseProvider` class: `chatCompletion()`, `streamChatCompletion()`, and optionally `embeddings()`.
 - **Health service** (`server/src/services/health.ts`) — periodic probe keeps key status fresh.
 - **Dashboard** (`client/`) — React + Vite + shadcn/ui admin surface.
 - **Storage** — SQLite (`better-sqlite3`) with AES-256-GCM envelope encryption for keys.
@@ -411,7 +465,7 @@ Stacking free tiers has real trade-offs. Be honest with yourself about them:
 Contributors very welcome! Good first PRs:
 
 - **Add a provider** — copy `server/src/providers/openai-compat.ts` as a template, wire it into `server/src/providers/index.ts`, seed its models in `server/src/db/index.ts`, add a test in `server/src/__tests__/providers/`.
-- **Add an endpoint** — embeddings, images, moderations. The provider base class can grow new methods; adapters declare which they support.
+- **Add an endpoint** — images, audio, moderations. The provider base class already has `embeddings()` as a model; follow the same pattern for new endpoint types.
 - **Improve the router** — cost-aware routing (cheapest-healthy-fastest tradeoffs), better latency-weighted priority, regional pinning.
 - **Dashboard polish** — charts on the Analytics page, key rotation UX, batch import of keys from `.env`.
 - **Docs** — more examples, client library snippets for Go/Rust/etc., a deployment recipe for Docker or Fly.

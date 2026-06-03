@@ -48,6 +48,7 @@ register(new OpenAICompatProvider({
   platform: 'mistral',
   name: 'Mistral',
   baseUrl: 'https://api.mistral.ai/v1',
+  embeddingModels: ['mistral-embed'],
 }));
 
 // OpenRouter - OpenAI-compatible with extra headers

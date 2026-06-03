@@ -8,6 +8,7 @@ import { modelsRouter } from './routes/models.js';
 import { anthropicProxyRouter } from './routes/anthropic-proxy.js';
 import { responsesProxyRouter } from './routes/responses-proxy.js';
 import { proxyRouter } from './routes/proxy.js';
+import { embeddingsRouter } from './routes/embeddings.js';
 import { fallbackRouter } from './routes/fallback.js';
 import { analyticsRouter } from './routes/analytics.js';
 import { healthRouter } from './routes/health.js';
@@ -39,10 +40,11 @@ export function createApp() {
   app.use('/api/settings', settingsRouter);
   app.use('/api/codex', codexRouter);
 
-  // Anthropic Messages API (Claude Code), OpenAI Responses API (Codex), Chat Completions
+  // Anthropic Messages API (Claude Code), OpenAI Responses API (Codex), Chat Completions, Embeddings
   app.use('/v1', anthropicProxyRouter);
   app.use('/v1', responsesProxyRouter);
   app.use('/v1', proxyRouter);
+  app.use('/v1', embeddingsRouter);
 
   // Health check
   app.get('/api/ping', (_req, res) => {
