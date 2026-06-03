@@ -2,6 +2,7 @@ import type {
   ChatMessage,
   ChatCompletionResponse,
   ChatCompletionChunk,
+  EmbeddingsResponse,
   Platform,
 } from '@freellmapi/shared/types.js';
 import { BaseProvider, type CompletionOptions } from './base.js';
@@ -20,6 +21,8 @@ export class OpenAICompatProvider extends BaseProvider {
   /** Per-provider HTTP timeout override. Cloud APIs finish in ~15s; locally-hosted
    * inference (llama.cpp / vLLM on CPU) can take 30-120s for long prompts. Default 15000. */
   private readonly timeoutMs: number;
+  private readonly embeddingModels?: string[];
+  readonly supportsEmbeddings: boolean;
 
   constructor(opts: {
     platform: Platform;
@@ -29,6 +32,7 @@ export class OpenAICompatProvider extends BaseProvider {
     validateUrl?: string;
     timeoutMs?: number;
     keyless?: boolean;
+    embeddingModels?: string[];
   }) {
     super();
     this.platform = opts.platform;
@@ -38,6 +42,8 @@ export class OpenAICompatProvider extends BaseProvider {
     this.validateUrl = opts.validateUrl;
     this.timeoutMs = opts.timeoutMs ?? 15000;
     this.keyless = opts.keyless ?? false;
+    this.embeddingModels = opts.embeddingModels;
+    this.supportsEmbeddings = (opts.embeddingModels?.length ?? 0) > 0;
   }
 
   /** Keyless providers (Kilo's anonymous free tier) must send NO Authorization
@@ -160,6 +166,30 @@ export class OpenAICompatProvider extends BaseProvider {
       },
     }, 30000);
     return res.status !== 401 && res.status !== 403;
+  }
+
+  async embeddings(
+    apiKey: string,
+    input: string[],
+    modelId: string,
+    _options?: { dimensions?: number },
+  ): Promise<EmbeddingsResponse> {
+    const res = await this.fetchWithTimeout(`${this.baseUrl}/embeddings`, {
+      method: 'POST',
+      headers: {
+        ...this.authHeader(apiKey),
+        'Content-Type': 'application/json',
+        ...this.extraHeaders,
+      },
+      body: JSON.stringify({ model: modelId, input }),
+    }, this.timeoutMs);
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(`${this.name} API error ${res.status}: ${(err as any).error?.message ?? res.statusText}`);
+    }
+
+    return res.json() as Promise<EmbeddingsResponse>;
   }
 }
 

@@ -233,3 +233,29 @@ export interface RateLimitStatus {
   available: boolean;
   nextResetAt: string | null;
 }
+
+// ---- Embeddings Types ----
+
+export interface EmbeddingsRequest {
+  input: string | string[];
+  model?: string;
+  encoding_format?: 'float' | 'base64';
+  dimensions?: number;
+  user?: string;
+}
+
+export interface EmbeddingObject {
+  object: 'embedding';
+  embedding: number[];
+  index: number;
+}
+
+export interface EmbeddingsResponse {
+  object: 'list';
+  data: EmbeddingObject[];
+  model: string;
+  usage: {
+    prompt_tokens: number;
+    total_tokens: number;
+  };
+}

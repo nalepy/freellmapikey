@@ -56,6 +56,7 @@ export function initDb(dbPath?: string): Database.Database {
   migrateModelsV19Gemma4(db);
   migrateModelsV20KiloFree(db);
   migrateModelsV21PruneDead(db);
+  migrateModelsV22Embeddings(db);
   ensureUnifiedKey(db);
 
   console.log(`Database initialized at ${resolvedPath}`);
@@ -1637,6 +1638,24 @@ function backfillFallback(db: Database.Database) {
     const addFb = db.prepare('INSERT INTO fallback_config (model_db_id, priority, enabled) VALUES (?, ?, 1)');
     for (let i = 0; i < missing.length; i++) addFb.run(missing[i].id, maxPriority + i + 1);
   }
+}
+
+/**
+ * Seed embedding-only model rows so the /v1/embeddings route can resolve
+ * "auto" → a seeded model. enabled=0 keeps them out of the chat fallback chain.
+ */
+function migrateModelsV22Embeddings(db: Database.Database) {
+  const insert = db.prepare(`
+    INSERT OR IGNORE INTO models (platform, model_id, display_name, intelligence_rank, speed_rank, size_label, rpm_limit, rpd_limit, tpm_limit, tpd_limit, monthly_token_budget, context_window, enabled)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+  `);
+  const apply = db.transaction(() => {
+    insert.run('google', 'text-embedding-004', 'Text Embedding 004', 99, 99, 'Embedding', 1500, null, null, null, '~1M chars/day', null);
+    insert.run('google', 'text-multilingual-embedding-002', 'Text Multilingual Embedding 002', 99, 99, 'Embedding', 1500, null, null, null, '~1M chars/day', null);
+    insert.run('mistral', 'mistral-embed', 'Mistral Embed', 99, 99, 'Embedding', 2, null, 500000, null, '~50-100M', null);
+  });
+  apply();
+  backfillFallback(db);
 }
 
 function ensureUnifiedKey(db: Database.Database) {
