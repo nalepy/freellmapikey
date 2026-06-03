@@ -214,25 +214,29 @@ function parseInputItems(input: string | ResponsesInputItem[] | undefined): Chat
   for (const item of input) {
     if (typeof item !== 'object' || item === null) continue;
 
-    if (item.type === 'function_call_output' && typeof item.call_id === 'string') {
+    // Use a loose-typed alias so TypeScript doesn't reject discriminated-union
+    // property access on the heterogeneous ResponsesInputItem union members.
+    const r = item as Record<string, unknown>;
+
+    if (r['type'] === 'function_call_output' && typeof r['call_id'] === 'string') {
       messages.push({
         role: 'tool',
-        tool_call_id: item.call_id,
-        content: flattenToolOutput(item.output as string | ResponsesContentPart[]),
+        tool_call_id: r['call_id'],
+        content: flattenToolOutput(r['output'] as string | ResponsesContentPart[]),
       });
       continue;
     }
 
-    if (item.type === 'function_call' && typeof item.call_id === 'string' && typeof item.name === 'string') {
+    if (r['type'] === 'function_call' && typeof r['call_id'] === 'string' && typeof r['name'] === 'string') {
       messages.push({
         role: 'assistant',
         content: null,
         tool_calls: [{
-          id: item.call_id,
+          id: r['call_id'],
           type: 'function',
           function: {
-            name: item.name,
-            arguments: typeof item.arguments === 'string' ? item.arguments : '{}',
+            name: r['name'],
+            arguments: typeof r['arguments'] === 'string' ? r['arguments'] : '{}',
           },
         }],
       });
@@ -333,7 +337,7 @@ export function openAIResponseToResponses(
   const output: ResponsesOutputItem[] = [];
   let outputText = '';
 
-  if (msg?.content) {
+  if (msg?.content && typeof msg.content === 'string') {
     const msgId = result.id.startsWith('msg_') ? result.id : `msg_${result.id}`;
     outputText = msg.content;
     output.push({

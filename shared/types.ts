@@ -115,7 +115,7 @@ export type ChatContentPart =
     type: 'image_url';
     image_url: {
       url: string;
-      detail?: 'auto' | 'low' | 'high';
+      detail?: 'auto' | 'low' | 'high' | 'original';
     };
   };
 

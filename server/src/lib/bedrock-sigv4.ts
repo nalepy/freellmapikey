@@ -59,7 +59,11 @@ export async function bedrockSignedFetch(
     sha256: Sha256,
   });
 
-  const signed = await signer.sign(request);
+  // @aws-sdk/signature-v4 bundles its own @smithy/types, so its HttpRequest
+  // differs from @smithy/protocol-http's at the type level (missing `clone`).
+  // Both are structurally identical at runtime — double-cast to our local type.
+  const signFn = signer.sign.bind(signer) as unknown as (req: HttpRequest) => Promise<HttpRequest>;
+  const signed = await signFn(request);
   const url = toFetchUrl(signed);
 
   const controller = new AbortController();

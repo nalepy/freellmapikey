@@ -39,6 +39,7 @@ export abstract class BaseProvider {
   abstract validateKey(apiKey: string): Promise<boolean>;
 
   declare readonly supportsEmbeddings?: boolean;
+  declare readonly keyless?: boolean;
 
   embeddings?(
     apiKey: string,
