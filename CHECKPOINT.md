@@ -1,110 +1,149 @@
-# Session Checkpoint — 2026-06-03
+# Session Checkpoint — 2026-06-03 (updated)
 
 ## What was completed
 
-### Task 1 — `POST /v1/embeddings` endpoint (fully shipped, tested, pushed)
-
-**New files:**
-- `server/src/routes/embeddings.ts` — route handler: zod validation, model routing, cooldown-aware key selection, provider fallback loop, request recording, error surfacing.
-- `server/src/__tests__/routes/embeddings.test.ts` — 8 integration tests (validation, single/batch dispatch, auto-routing, Mistral fallback, 503 on no keys, multilingual model routing). All pass.
-
-**Modified files:**
-- `shared/types.ts` — added `EmbeddingsRequest`, `EmbeddingObject`, `EmbeddingsResponse` types.
-- `server/src/providers/base.ts` — added `declare readonly supportsEmbeddings?: boolean` and optional `embeddings()` method.
-- `server/src/providers/google.ts` — added `supportsEmbeddings = true` and `embeddings()` using Gemini `embedContent` (single) and `batchEmbedContents` (array) APIs.
-- `server/src/providers/openai-compat.ts` — added `embeddingModels?` constructor option, `supportsEmbeddings` getter, and `embeddings()` calling `${baseUrl}/embeddings`.
-- `server/src/providers/index.ts` — Mistral instance gets `embeddingModels: ['mistral-embed']`.
-- `server/src/app.ts` — `embeddingsRouter` imported and registered under `/v1`.
-- `server/src/db/index.ts` — added `migrateModelsV17Embeddings()` (called in `initDb`): inserts 3 embedding-only model rows (`text-embedding-004`, `text-multilingual-embedding-002`, `mistral-embed`) with `enabled=0` and creates their `fallback_config` entries.
-
-**Bugs fixed during code review (all in same commit):**
-- `google.ts`: `data.embedding?.values` null-checked before deref — Google can return 200 with a non-standard body shape.
-- `embeddings.ts`: `lastError` tracked; 503 response now includes actual provider error message.
-- `embeddings.ts`: `pickKey` iterates all keys and skips any on cooldown (`isOnCooldown`), returns `{key, keyId}` instead of bare string.
-- `embeddings.ts`: 429 errors trigger `setCooldown(platform, modelId, keyId)` so the key is not immediately retried.
-- `embeddings.ts`: every attempt (success and failure) writes a row to the `requests` table so analytics are not blind to embedding traffic.
+### Session 1 — Embeddings + CLI (commit cd2b625)
+See the original CHECKPOINT.md content — fully shipped. Summary:
+- `POST /v1/embeddings` routing through Google and Mistral, with cooldown
+  awareness, request recording, and error surfacing.
+- `npx freellmapikey` CLI (`bin/cli.mjs`) + `package.json` made publishable.
+- 148 tests passing at end of session 1.
 
 ---
 
-### Task 2 — `npx freellmapikey` CLI (fully shipped, pushed)
+### Session 2 — Custom endpoint + Docker (commit 94456eb)
 
-**New files:**
-- `bin/cli.mjs` — Node.js ESM CLI. Subcommands: `setup` (clone + install + build), `start`, `update` (pull + rebuild + start), `auto` (default: setup if needed, then start). Installs to `~/.freellmapikey`.
+#### Feature 1 — Custom OpenAI-compatible endpoint
 
-**Modified files:**
-- `package.json` — `"private": false`, added `"bin"`, `"files"`, `"version": "1.0.0"`, `"description"`, `"keywords"`, `"homepage"`, `"repository"`, `"license"`, `"engines"`.
+Users can point FreeLLMAPIKey at any local or self-hosted server (llama.cpp,
+LM Studio, vLLM, local Ollama, etc.) by POSTing to `/api/keys/custom`.
+
+**Files modified:**
+
+| File | Change |
+|------|--------|
+| `shared/types.ts` | Added `'custom'` to `Platform` union |
+| `server/src/providers/openai-compat.ts` | Added `keyless?: boolean` constructor option + `readonly keyless` field |
+| `server/src/providers/index.ts` | Added placeholder `custom` registration; added `resolveProvider(platform, baseUrl?)` export |
+| `server/src/routes/keys.ts` | Full rewrite: `POST /custom`, `PATCH /platform/:platform`, label editing in `PATCH /:id`, `baseUrl` in `GET /` response, optional `key` field for keyless providers |
+| `server/src/db/index.ts` | Added `ensureApiKeysBaseUrlColumn()` + call in `initDb()` |
+| `server/src/services/router.ts` | Added `base_url` to `KeyRow`; imports `resolveProvider`; uses it for `custom` platform keys in the routing loop |
+| `server/src/__tests__/routes/keys.test.ts` | +6 tests: label patch, POST /custom happy path, validation errors, idempotency, platform toggle |
+
+**How the routing works:**
+1. `POST /api/keys/custom` stores the base URL in `api_keys.base_url` and
+   inserts a model row (`platform='custom'`) into the fallback chain.
+2. When the router selects a `custom` model, it calls
+   `resolveProvider('custom', key.base_url)` to build a fresh
+   `OpenAICompatProvider` with the stored base URL and a 120s timeout.
+3. The registered placeholder provider (empty `baseUrl`) is never used for
+   actual requests — it only exists so `getProvider/hasProvider` work.
 
 ---
 
-### README updates (same commit)
-- **Features**: added embeddings bullet with model/dim/limit summary.
-- **Not yet supported**: removed `Embeddings (/v1/embeddings)` bullet.
-- **Quick start**: added Option A (`npx freellmapikey`) before the existing clone-and-run option.
-- **Using the API**: added `### Embeddings` section with provider table and Python + curl examples.
-- **Table of contents**: added `Embeddings` sub-entry under Using the API.
-- **How it works**: updated provider adapters line to mention `embeddings()`.
-- **Contributing**: updated "Add an endpoint" bullet (embeddings is done; images/audio/moderations are next).
+#### Feature 2 — Docker support
 
----
+**Files created:**
 
-### Git state
-- Branch: `main`
-- Last commit: `cd2b625` — `feat: add /v1/embeddings endpoint and npx freellmapikey CLI`
-- Pushed to `origin/main` ✅
-- 148 tests passing, 0 failures
+| File | What it does |
+|------|-------------|
+| `Dockerfile` | 3-stage build (deps → build → runtime). Stage 1 installs Python3/make/g++ to compile `better-sqlite3` native module. Stage 2 builds and prunes. Stage 3 is the slim runtime image: copies built artifacts, creates `/app/server/data`, runs as `node` user, exposes `:3001`. |
+| `docker-compose.yml` | Single service `freellmapikey`. Binds to `127.0.0.1` by default (`HOST_BIND=0.0.0.0` to expose on LAN). Named volume `freellmapikey-data` for SQLite persistence. Healthcheck via `GET /api/ping`. |
+| `.dockerignore` | Excludes `node_modules`, `dist`, `server/data`, `.env`, `*.db` files from build context. |
+
+**To run with Docker:**
+```bash
+# Copy and fill in your encryption key
+cp .env.example .env
+echo "ENCRYPTION_KEY=$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")" >> .env
+
+# Build and start
+docker compose up --build -d
+
+# View logs
+docker compose logs -f
+
+# Stop
+docker compose down
+```
+
+The server serves both the API (`:3001/v1/...`) and the React dashboard
+(`http://localhost:3001`) from the same port.
+
+**Multi-arch:** The Dockerfile supports `linux/amd64` and `linux/arm64`
+(Raspberry Pi 4 / M-series Mac) because it compiles `better-sqlite3` from
+source rather than relying on prebuilt binaries. To build multi-arch:
+```bash
+docker buildx build --platform linux/amd64,linux/arm64 -t ghcr.io/nalepy/freellmapikey:latest --push .
+```
 
 ---
 
 ## What is in progress
 
-Nothing is mid-edit. All files are clean and committed.
-
-The session ended with an unanswered question: the user asked to **"Run the custom endpoint + Docker prompt"** but the intent was unclear (no Dockerfile exists, no prompt file found). This was the last message before the checkpoint — needs clarification next session.
+Nothing is mid-edit. All files are committed and pushed (commit `94456eb`).
 
 ---
 
 ## What still needs to be done
 
-### Pending clarification
-- **Docker / custom endpoint prompt** — user asked for this at the very end; unclear whether they want:
-  - A `Dockerfile` + `docker-compose.yml` for running the full stack in Docker
-  - A specific prompt or task definition file they had in mind
-  - Something else entirely
-
-### Known missing (not started)
-- **Docker support** — no `Dockerfile` exists. If wanted: multi-stage build (Node 20 builder → slim runner), expose `:3001`, mount `server/data` as a volume for the SQLite DB.
+### Known missing (not started, not requested)
 - **Image generation** — `POST /v1/images/*` not implemented.
 - **Audio / speech** — `POST /v1/audio/*` not implemented.
 - **Legacy completions** — `POST /v1/completions` not implemented.
 - **Moderation** — `POST /v1/moderations` not implemented.
-- **`n > 1`** (multiple completions per request) not implemented.
+- **Dashboard UI for custom endpoint** — The `POST /api/keys/custom` API is
+  complete, but the React dashboard has no form for it yet. Users must call
+  the API directly or use curl/Postman. The upstream's dashboard had a custom
+  provider form — that UI was NOT ported (would require client-side changes).
+- **CI/CD pipeline** — No GitHub Actions workflow for building and pushing
+  the Docker image to ghcr.io/nalepy/freellmapikey. The Dockerfile is ready
+  but the push workflow isn't wired up.
+- **`npx freellmapikey` — not yet published to npm**. The `package.json` is
+  configured (`private: false`, `bin`, `files`, `version: 1.0.0`) but
+  `npm publish` has not been run. Needs an npm account + `npm login`.
 
-### Nice-to-have follow-ups from code review
-- The `auto` and `else` (unknown model) branches in `embeddings.ts:53–64` are intentionally identical for readability — could be collapsed if the code grows.
-- `pickKey` in `embeddings.ts` is simpler than `routeRequest` in `router.ts` (no RPM/TPM budget enforcement, no round-robin). If the embeddings endpoint starts getting high traffic, consider routing embedding keys through the full `routeRequest` machinery.
+### Deferred from earlier sessions
+- Docker / custom endpoint prompt clarification (now completed).
 
 ---
 
 ## Decisions made and gotchas
 
-### `declare readonly supportsEmbeddings` in BaseProvider
-TypeScript `target: ES2022` implies `useDefineForClassFields: true`. Without `declare`, the base class field initializes to `undefined` on every instance, shadowing `OpenAICompatProvider`'s getter. The `declare` keyword tells TypeScript the field exists for type-checking only — no JavaScript field initialization is emitted — so the getter is not shadowed. This is the correct pattern for ES2022 abstract/base class fields that subclasses override with getters.
+### One shared `custom` api_keys row, not one per model
+The upstream design stores a single `custom` key row that holds the base URL.
+When the user re-submits `/custom` with a different `baseUrl`, the row is
+updated (not duplicated). Multiple models can be registered to the same
+endpoint. If the user wants two different local endpoints simultaneously
+(e.g., llama.cpp on :11434 and vLLM on :8000), only the last one wins —
+this is a limitation of the single-row design inherited from upstream.
 
-### Embedding model rows use `enabled = 0`
-The three embedding-only rows (`text-embedding-004`, `text-multilingual-embedding-002`, `mistral-embed`) are inserted with `enabled = 0` to prevent them from appearing in the chat fallback chain or `GET /v1/models`. The embeddings route addresses them directly by model ID.
+### `resolveProvider` vs `getProvider` for custom
+`getProvider('custom')` returns the placeholder with an empty `baseUrl` that
+would always fail routing. `resolveProvider('custom', baseUrl)` builds a
+fresh `OpenAICompatProvider` bound to the actual stored URL. The router was
+updated to use `resolveProvider` only for the `custom` platform case; all
+other platforms still use the cached singleton via `getProvider`.
 
-### V17 migration must include the fallback-adding block
-Every migration that inserts model rows must also include the "add missing `fallback_config` entries" pattern at the end of its transaction. Without it, a subsequent migration's fallback-adding code finds the orphaned rows on the second `initDb` call and adds them, making the migration non-idempotent. The idempotency test (`every catalog row has exactly one fallback_config entry`) would catch this.
+### `base_url` column is nullable
+`ALTER TABLE api_keys ADD COLUMN base_url TEXT` defaults to NULL for all
+existing rows. Only `custom` platform rows ever have a non-null value.
+`ensureApiKeysBaseUrlColumn` is idempotent — safe to re-run.
 
-### SIGINT on Windows — not a bug
-`bin/cli.mjs` uses `process.on('SIGINT', () => child.kill('SIGINT'))`. On Windows, `child.kill('SIGINT')` calls `TerminateProcess` (POSIX signals don't exist). Because the server is spawned with `stdio: 'inherit'`, Ctrl+C is also broadcast by the OS to the child's console group directly. Either path terminates the child and fires `child.on('exit')`, which calls `process.exit`. No hang.
+### Dockerfile compiles better-sqlite3 from source on arm64
+The `node:20-bookworm-slim` base image has no prebuilt `better-sqlite3`
+binary for arm64 under QEMU. The `deps` stage installs `python3 make g++`
+so node-gyp can compile it. Those tools are NOT in the final `runtime` stage
+(which copies already-compiled `node_modules` from `build`), keeping the
+runtime image small.
 
-### Mistral embedding endpoint
-Mistral's OpenAI-compat embeddings endpoint is `POST https://api.mistral.ai/v1/embeddings` — same base URL as chat, just `/embeddings` not `/chat/completions`. The `OpenAICompatProvider.embeddings()` method calls `${this.baseUrl}/embeddings`, which resolves correctly.
+### `.dockerignore` excludes `server/data`
+The `server/data` directory (SQLite DB) is excluded from the build context
+and managed as a named Docker volume (`freellmapikey-data`). This means
+each `docker compose up --build` starts with a fresh DB unless the volume
+already exists.
 
-### Google single vs batch API
-The Gemini embeddings API has two distinct endpoints:
-- `POST /models/{model}:embedContent` — single text input
-- `POST /models/{model}:batchEmbedContents` — array of inputs
-
-The route dispatches based on `input.length === 1`. Both endpoints require `model: "models/{modelId}"` in the request body (the `models/` prefix is mandatory).
+### Tests: 154 passing (was 148 after session 1, +6 new custom endpoint tests)
+All 24 test files pass. The new tests cover: label editing via PATCH, custom
+endpoint registration, validation, idempotent re-submission, and platform
+bulk-toggle.
