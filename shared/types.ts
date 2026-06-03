@@ -20,7 +20,8 @@ export type Platform =
   | 'kilo'
   | 'pollinations'
   | 'llm7'
-  | 'bedrock';
+  | 'bedrock'
+  | 'custom';
 
 export interface Model {
   id: number;

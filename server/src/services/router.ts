@@ -1,5 +1,5 @@
 import { getDb } from '../db/index.js';
-import { getProvider } from '../providers/index.js';
+import { getProvider, resolveProvider } from '../providers/index.js';
 import { decrypt } from '../lib/crypto.js';
 import { modelSupportsVision, visionRouteSortKey } from '../lib/message-content.js';
 import { canMakeRequest, canUseTokens, isOnCooldown } from './ratelimit.js';
@@ -24,6 +24,7 @@ interface KeyRow {
   auth_tag: string;
   status: string;
   enabled: number;
+  base_url: string | null;
 }
 
 interface FallbackRow {
@@ -201,9 +202,9 @@ export function routeRequest(
     const provider = getProvider(model.platform as any);
     if (!provider) continue;
 
-    // Get all healthy, enabled keys for this platform
+    // Get all healthy, enabled keys for this platform (base_url needed for custom)
     const keys = db.prepare(
-      'SELECT * FROM api_keys WHERE platform = ? AND enabled = 1 AND status != ?'
+      'SELECT id, platform, encrypted_key, iv, auth_tag, status, enabled, base_url FROM api_keys WHERE platform = ? AND enabled = 1 AND status != ?'
     ).all(model.platform, 'invalid') as KeyRow[];
 
     if (keys.length === 0) continue;
@@ -233,12 +234,19 @@ export function routeRequest(
       if (!canMakeRequest(model.platform, model.model_id, key.id, limits)) continue;
       if (!canUseTokens(model.platform, model.model_id, key.id, estimatedTokens, limits)) continue;
 
+      // For 'custom' platform the real provider is built from this key's
+      // base_url — the registered placeholder has an empty baseUrl.
+      const resolvedProvider = model.platform === 'custom'
+        ? resolveProvider('custom', key.base_url)
+        : provider;
+      if (!resolvedProvider) continue;
+
       // We found a working key for this model!
       roundRobinIndex.set(rrKey, idx);
       const decryptedKey = decrypt(key.encrypted_key, key.iv, key.auth_tag);
 
       return {
-        provider,
+        provider: resolvedProvider,
         modelId: model.model_id,
         modelDbId: model.id,
         apiKey: decryptedKey,

@@ -97,4 +97,80 @@ describe('Keys API', () => {
     const { status } = await request(app, 'DELETE', '/api/keys/99999');
     expect(status).toBe(404);
   });
+
+  it('PATCH /api/keys/:id updates label', async () => {
+    const { body: created } = await request(app, 'POST', '/api/keys', {
+      platform: 'groq',
+      key: 'gsk_test123',
+      label: 'old label',
+    });
+
+    const { status, body } = await request(app, 'PATCH', `/api/keys/${created.id}`, {
+      label: 'new label',
+    });
+    expect(status).toBe(200);
+    expect(body.label).toBe('new label');
+  });
+
+  it('POST /api/keys/custom registers a local endpoint and model', async () => {
+    const { status, body } = await request(app, 'POST', '/api/keys/custom', {
+      baseUrl: 'http://localhost:11434/v1',
+      model: 'llama3.2',
+      displayName: 'Llama 3.2 (local)',
+    });
+
+    expect(status).toBe(201);
+    expect(body.success).toBe(true);
+    expect(body.platform).toBe('custom');
+    expect(body.baseUrl).toBe('http://localhost:11434/v1');
+    expect(body.model).toBe('llama3.2');
+
+    // Key row should exist and carry baseUrl
+    const { body: keys } = await request(app, 'GET', '/api/keys');
+    const customKey = keys.find((k: any) => k.platform === 'custom');
+    expect(customKey).toBeDefined();
+    expect(customKey.baseUrl).toBe('http://localhost:11434/v1');
+  });
+
+  it('POST /api/keys/custom rejects missing baseUrl', async () => {
+    const { status } = await request(app, 'POST', '/api/keys/custom', {
+      model: 'llama3.2',
+    });
+    expect(status).toBe(400);
+  });
+
+  it('POST /api/keys/custom rejects missing model', async () => {
+    const { status } = await request(app, 'POST', '/api/keys/custom', {
+      baseUrl: 'http://localhost:11434/v1',
+    });
+    expect(status).toBe(400);
+  });
+
+  it('POST /api/keys/custom is idempotent — re-submitting updates the endpoint', async () => {
+    await request(app, 'POST', '/api/keys/custom', {
+      baseUrl: 'http://localhost:11434/v1',
+      model: 'llama3.2',
+    });
+    await request(app, 'POST', '/api/keys/custom', {
+      baseUrl: 'http://localhost:1234/v1',
+      model: 'phi-3',
+    });
+
+    const { body: keys } = await request(app, 'GET', '/api/keys');
+    // Should have exactly 1 custom key row (reused)
+    const customKeys = keys.filter((k: any) => k.platform === 'custom');
+    expect(customKeys).toHaveLength(1);
+    expect(customKeys[0].baseUrl).toBe('http://localhost:1234/v1');
+  });
+
+  it('PATCH /api/keys/platform/:platform toggles all keys for a platform', async () => {
+    await request(app, 'POST', '/api/keys', { platform: 'groq', key: 'key1' });
+    await request(app, 'POST', '/api/keys', { platform: 'groq', key: 'key2' });
+
+    const { status, body } = await request(app, 'PATCH', '/api/keys/platform/groq', {
+      enabled: false,
+    });
+    expect(status).toBe(200);
+    expect(body.updatedKeys).toBe(2);
+  });
 });

@@ -52,6 +52,7 @@ export function initDb(dbPath?: string): Database.Database {
   migrateModelsV16(db);
   migrateModelsV17Embeddings(db);
   migrateSchemaV12(db);
+  ensureApiKeysBaseUrlColumn(db);
   ensureUnifiedKey(db);
 
   console.log(`Database initialized at ${resolvedPath}`);
@@ -1116,6 +1117,14 @@ function migrateModelsV17Embeddings(db: Database.Database) {
     }
   });
   apply();
+}
+
+/** Adds base_url column to api_keys for the user-configured custom provider. */
+function ensureApiKeysBaseUrlColumn(db: Database.Database) {
+  const columns = db.prepare('PRAGMA table_info(api_keys)').all() as { name: string }[];
+  if (!columns.some(col => col.name === 'base_url')) {
+    db.prepare('ALTER TABLE api_keys ADD COLUMN base_url TEXT').run();
+  }
 }
 
 function tableHasColumn(db: Database.Database, table: string, column: string): boolean {

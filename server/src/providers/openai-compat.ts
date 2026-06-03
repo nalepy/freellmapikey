@@ -23,6 +23,7 @@ export class OpenAICompatProvider extends BaseProvider {
    * inference (llama.cpp / vLLM on CPU) can take 30-120s for long prompts. Default 15000. */
   private readonly timeoutMs: number;
   private readonly embeddingModels?: string[];
+  readonly keyless: boolean;
 
   get supportsEmbeddings(): boolean {
     return (this.embeddingModels?.length ?? 0) > 0;
@@ -36,6 +37,7 @@ export class OpenAICompatProvider extends BaseProvider {
     validateUrl?: string;
     timeoutMs?: number;
     embeddingModels?: string[];
+    keyless?: boolean;
   }) {
     super();
     this.platform = opts.platform;
@@ -45,6 +47,7 @@ export class OpenAICompatProvider extends BaseProvider {
     this.validateUrl = opts.validateUrl;
     this.timeoutMs = opts.timeoutMs ?? 15000;
     this.embeddingModels = opts.embeddingModels;
+    this.keyless = opts.keyless ?? false;
   }
 
   async chatCompletion(
