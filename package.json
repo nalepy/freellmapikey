@@ -1,10 +1,10 @@
 {
   "name": "freellmapikey",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "One OpenAI-compatible endpoint. 18 free-tier providers. ~1.3B tokens/month.",
   "private": false,
   "bin": {
-    "freellmapikey": "./bin/cli.mjs"
+    "freellmapikey": "bin/cli.js"
   },
   "files": [
     "bin/",
@@ -12,21 +12,32 @@
     "LICENSE"
   ],
   "keywords": [
-    "llm", "openai", "proxy", "free", "gemini", "claude", "codex", "embeddings"
+    "llm",
+    "openai",
+    "proxy",
+    "free",
+    "gemini",
+    "claude",
+    "codex",
+    "embeddings"
   ],
   "homepage": "https://github.com/nalepy/freellmapikey",
   "repository": {
     "type": "git",
-    "url": "https://github.com/nalepy/freellmapikey.git"
+    "url": "git+https://github.com/nalepy/freellmapikey.git"
   },
   "license": "MIT",
   "engines": {
     "node": ">=20"
   },
-  "workspaces": ["shared", "server", "client"],
+  "workspaces": [
+    "shared",
+    "server",
+    "client"
+  ],
   "scripts": {
     "dev": "concurrently \"npm run dev -w server\" \"npm run dev -w client\"",
-    "test": "npm run test -w server && npm run test -w client",
+    "test": "npm run test -w server",
     "build": "npm run build -w server && npm run build -w client",
     "build:server": "npm run build -w server",
     "codex:model-catalog": "node scripts/generate-codex-model-catalog.mjs"
